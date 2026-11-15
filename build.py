@@ -1,4 +1,10 @@
 import os
+
+def INL(t):
+    # put three.js inside the page so the 3D games (Jenga, Billiards) never depend on an outside server
+    tag='<script src="https://cdn.jsdelivr.net/npm/three@0.136.0/build/three.min.js"></script>'
+    three=open('webpkg/three.min.js',encoding='utf-8').read()
+    return t.replace(tag,'<script>'+three.replace('</script','<\\/script')+'</script>')
 s=open('ads.html',encoding='utf-8').read()
 # one source of truth: the no-ads copy is ads.html with the single ADS.enabled flag switched off
 _on="  enabled: true,               // true = ads, gems"; assert s.count(_on)==1
@@ -8,7 +14,7 @@ O=open('head_lines.txt',encoding='utf-8').read().split('\n')
 def w(p,t):
     if os.path.exists(p): os.remove(p)
     open(p,'w',encoding='utf-8').write(t)
-w('out/parlour-online.html','\n'.join(O+s2.split('\n')[19:]))
+w('out/parlour-online.html',INL('\n'.join(O+s2.split('\n')[19:])))
 n=open('new.html',encoding='utf-8').read().split('\n'); body=s.split('\n')[19:]
 while body[-1].strip()=='': body.pop()
 idx='\n'.join(n[:16]+body[:-2]+[n[16513],'</body>','</html>'])+'\n'
@@ -22,4 +28,4 @@ reg.update().catch(function(){});setInterval(function(){reg.update().catch(funct
 assert idx.count(REG_OLD)==1
 idx=idx.replace(REG_OLD,REG_NEW)
 w('out/index.html',idx); w('out/parlour-offline.html',s); w('out/parlour-offline-noads.html',s2); w('webpkg/index.html',idx)
-w('out/parlour-online-gems.html','\n'.join(O+s.split('\n')[19:]))
+w('out/parlour-online-gems.html',INL('\n'.join(O+s.split('\n')[19:])))
