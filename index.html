@@ -649,6 +649,12 @@
   .sb-stage canvas { display:block; width:100%; height:auto; aspect-ratio:3/4; touch-action:none; cursor:crosshair; }
   .sb-stage canvas:focus-visible { outline:3px solid var(--brass-light, #e6c97a); outline-offset:-3px; }
   .sb-modes .diff-btn { min-height:44px; }
+  .dd-stage { width:100%; max-width:420px; margin:6px auto; border-radius:12px; overflow:hidden; border:2px solid var(--wood, #7a4a22); touch-action:none; }
+  .dd-stage canvas { display:block; width:100%; height:auto; aspect-ratio:9/14; touch-action:none; cursor:pointer; }
+  .dd-stage canvas:focus-visible { outline:3px solid var(--brass-light, #e6c97a); outline-offset:-3px; }
+  .dd-shop { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; align-items:center; margin:10px auto; max-width:420px; }
+  .dd-shop-h { width:100%; display:flex; justify-content:space-between; font-size:.95rem; }
+  .dd-up { min-height:44px; }
   .jenga-zoom { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; gap: 8px; z-index: 3; }
   .jenga-zbtn { width: 48px; height: 48px; border-radius: 50%; border: 1px solid rgba(255,255,255,.35); background: rgba(10,30,20,.7); color: #fff; font-size: 26px; line-height: 1; cursor: pointer; padding: 0; }
   .jenga-hint {
@@ -2244,7 +2250,7 @@
   <div class="topbar">
     <h1 id="homeLink">The Parlour</h1>
     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
-      <div class="tagline">A table of twenty-six games, all dealt out and ready to play.</div>
+      <div class="tagline">A table of twenty-seven games, all dealt out and ready to play.</div>
     </div>
   </div>
   <div class="game-bar">
@@ -2362,6 +2368,7 @@ const pauseQueue = [];
 
 
 const GAMES = [
+  {id:'dunedrift', name:'Dune Drift', status:'Fully playable', notes:'A calm sunset glide over soft dunes \u2014 collect stars, reach the lantern, upgrade your board; hard to lose, with a one-time continue', playable:true, category:'fun'},
   {id:'splashbeads', name:'Splash Beads', status:'Fully playable', notes:'Wash colourful beads off the board with a water gun \u2014 Levels with stars, Relax, and a 60-second Timed mode', playable:true, category:'fun'},
   {id:'chess', name:'Chess', status:'Playable + simple AI', notes:'Standard chess, plus Tamerlane Chess (Full & Simplified) and Double Chess variants', playable:true, category:'strategy',
     variants:['Standard Chess','Tamerlane Chess','Tamerlane Chess (Full)','Tamerlane Chess (Simplified)','Double Chess']},
@@ -2432,6 +2439,7 @@ function applyTheme(id) {
 // primary buttons -- without rewriting each game's whole palette. Falls
 // back to the felt theme's own brass accent for any game not listed here.
 const GAME_ACCENTS = {
+  dunedrift:      '#e2587a',
   splashbeads:    '#3fb6e8',
   chess:          '#C9A14A',
   chesslessons:   '#C9A14A',
@@ -2618,6 +2626,7 @@ const MUS_MOODS = [
   { id: 'calm',  name: 'Calm pads' },
   { id: 'keys',  name: 'Soft keys' },
   { id: 'lofi',  name: 'Lo-fi beat' },
+  { id: 'drift', name: 'Dune score' },
   { id: 'harp',  name: 'Harp' },
   { id: 'violin', name: 'Violin' },
   { id: 'santur', name: 'Santur' },
@@ -2721,13 +2730,43 @@ function musSanturNote(t, midi, vel) {
 const MUS_HARP_CHORDS = [[48, 55, 59, 64, 67, 71, 76], [45, 52, 57, 60, 64, 69, 72], [41, 48, 55, 57, 60, 64, 69], [43, 50, 55, 59, 62, 67, 71]];
 const MUS_DORIAN = [62, 64, 65, 67, 69, 71, 72, 74, 76, 77, 79]; // D dorian, D4 to G5
 const MUS_SHUR = [62, 63, 65, 67, 69, 70, 72, 74, 75, 77]; // D Shur: D Eb F G A Bb C D Eb F
+// ---- Dune score: an adaptive piece in D. Chords change every bar; the playing (speed, star combo) decides how busy it is,
+// and the time of day (progress through a Dune Drift level) moves it from a bright sunset key to a deeper night key. ----
+const DRIFT_DAY = [[38, 50, 57, 61, 64, 66], [35, 47, 54, 57, 61, 66], [31, 43, 50, 54, 59, 62], [33, 45, 52, 55, 59, 64]];
+const DRIFT_NIGHT = [[35, 47, 54, 57, 61, 66], [31, 43, 50, 54, 59, 62], [38, 50, 57, 62, 66, 69], [40, 52, 55, 59, 62, 66]];
+const DRIFT_PD = [62, 64, 66, 69, 71, 74, 76, 78, 81, 83], DRIFT_PN = [62, 65, 67, 69, 72, 74, 77, 79, 81, 84];
+function musThump(t, g) { const ctx = MUS.ctx, o = ctx.createOscillator(), a = ctx.createGain(); o.frequency.setValueAtTime(110, t); o.frequency.exponentialRampToValueAtTime(48, t + 0.16); a.gain.setValueAtTime(g || 0.16, t); a.gain.exponentialRampToValueAtTime(0.0001, t + 0.28); o.connect(a); a.connect(MUS.master); o.start(t); o.stop(t + 0.3); }
+function musDrift(t, n) {
+  const st = (typeof ddMusicState === 'function') ? ddMusicState() : { e: 0.3, p: 0.3, c: 0 };
+  const s = n % 8, bar = Math.floor(n / 8), night = st.p > 0.55, ch = (night ? DRIFT_NIGHT : DRIFT_DAY)[bar % 4], pent = night ? DRIFT_PN : DRIFT_PD, e = st.e;
+  if (s === 0) {
+    ch.slice(1).forEach((m, i) => musTone(t + i * 0.09, m, 3.2, { attack: 1.1, release: 1.8, gain: 0.04 + e * 0.025, cutoff: 900 + e * 700, type: 'triangle' }));
+    musTone(t, ch[0], 3.4, { attack: 0.05, release: 1.2, gain: 0.13, cutoff: 380, type: 'sine', detune: 0 });
+  }
+  if (s === 4 && e > 0.35) musTone(t, ch[0] + 12, 1.2, { attack: 0.02, release: 0.8, gain: 0.06, cutoff: 500, type: 'sine', detune: 0 });
+  // arpeggio on the chord tones: sparse when calm, flowing when you are fast
+  if (s === 0 || Math.random() < 0.3 + e * 0.6) {
+    const arp = [1, 3, 2, 4, 3, 5, 4, 2], m = ch[arp[s]] + (e > 0.6 && s % 2 ? 12 : 0);
+    musHarp(t + 0.02, m + 12, 0.55 + e * 0.45 + Math.random() * 0.2);
+    if (e > 0.5 && s % 4 === 2) musSanturNote(t + 0.2, m + 24 > 96 ? m + 12 : m + 24, 0.4 + e * 0.3);
+  }
+  // a singing line every other bar: violin when it is busy or night, soft harp otherwise
+  if (bar % 2 === 1 && s === 2) {
+    let i = MUS.dm === undefined ? 4 : MUS.dm; i = Math.max(1, Math.min(pent.length - 1, i + [-2, -1, 0, 1, 2][Math.floor(Math.random() * 5)])); MUS.dm = i;
+    if (e > 0.5 || night) musViolin(t, pent[i], 1.8, 0.7 + e * 0.4); else musHarp(t, pent[i] + 12, 0.9);
+  }
+  if (e > 0.5) { if (s % 2 === 0) musNoise(t, 0.05, 6500, 0.025 + e * 0.02); if (s === 0 || s === 4) musThump(t, 0.1 + e * 0.1); }
+  if (e > 0.75 && (s === 3 || s === 7)) musNoise(t, 0.09, 1800, 0.05);
+}
 function musSchedule() {
   const ctx = MUS.ctx; if (!ctx || !MUS.playing) return;
   // After the page was in the background the timer runs late: restart from 'now' instead of firing a burst of old notes.
   if (MUS.nextTime < ctx.currentTime - 0.2) MUS.nextTime = ctx.currentTime + 0.05;
   while (MUS.nextTime < ctx.currentTime + 1.2) {
     const t = MUS.nextTime, n = MUS.step++;
-    if (MUS.mood === 'harp') {
+    if (MUS.mood === 'drift') {
+      musDrift(t, n); MUS.nextTime += 0.4167;
+    } else if (MUS.mood === 'harp') {
       const bar = Math.floor(n / 8) % 4, k = n % 8, ch = MUS_HARP_CHORDS[bar];
       const pat = [0, 2, 3, 4, 5, 4, 3, 2];
       if (k === 0) musHarp(t, ch[0] - 12, 0.8);
@@ -3508,6 +3547,7 @@ const WIN_STATS_SOURCES = [
   { key: 'bil-stats',     field: 'wins' },
   { key: 'ws-stats',      field: 'levels' },
   { key: 'sb-stats',      field: 'levels' },
+  { key: 'dd-stats',      field: 'levels' },
   { key: 'bj-stats',      field: 'wins' },
   { key: 'cp-stats',      field: 'you' },
   { key: 'basra-stats',   field: 'you' },
@@ -3712,7 +3752,7 @@ let APP_LANG = (function () { const l = safeGet('app-lang', 'en'); return (l ===
 function isRtlLang() { return APP_LANG === 'fa' || APP_LANG === 'azb'; }
 const FA = {
   // hub
-  'A table of twenty-six games, all dealt out and ready to play.': 'میزی با بیست‌وشش بازی، چیده و آمادهٔ بازی.',
+  'A table of twenty-seven games, all dealt out and ready to play.': 'میزی با بیست‌وهفت بازی، چیده و آمادهٔ بازی.',
   'Search games...': 'جستجوی بازی‌ها...',
   'Your scores live only in this browser, on this device.': 'امتیازهای شما فقط در همین مرورگر و روی همین دستگاه ذخیره می‌شوند.',
   '← Back to the table': '→ بازگشت به میز',
@@ -4964,6 +5004,7 @@ const FA = {
   "Solved": "حل‌شده",
   "Round wins": "بردهای دور",
   "Reset all stats": "بازنشانی همهٔ آمارها",
+  "Are you sure you want to reset all stats? This deletes every score and cannot be undone.": "آیا مطمئنید که می‌خواهید همهٔ آمارها را بازنشانی کنید؟ همهٔ امتیازها پاک می‌شوند و بازگشتی ندارد.",
   "Helper": "راهنما",
   "Hit": "کارت بگیر",
   "Stand": "بایست",
@@ -4997,7 +5038,7 @@ const FA = {
   // ---- end full-app Persian ----
   // categories
   'Strategy': 'استراتژی', 'Roll the Dice': 'تاس‌بازی', 'Recreational': 'تفریحی', 'Cards': 'ورق‌بازی',
-  'Fun & Relax': 'سرگرمی و آرامش', 'Splash Beads': 'مهره‌های آب‌پاش', 'Logic & Puzzles': 'منطق و پازل', 'Party & Arcade': 'مهمانی و آرکید', 'Stats': 'آمار',
+  'Fun & Relax': 'سرگرمی و آرامش', 'Splash Beads': 'مهره‌های آب‌پاش', 'Dune Drift': 'رانش تپه‌ها', 'Logic & Puzzles': 'منطق و پازل', 'Party & Arcade': 'مهمانی و آرکید', 'Stats': 'آمار',
   // options menu
   'Water gun': 'تفنگ آبی', 'Colour-blind help': 'کمک برای کوررنگی', 'Large text': 'متن درشت', 'Coaching': 'مربی‌گری', 'Game': 'بازی', 'Timer': 'زمان‌سنج', 'Level': 'سطح',
   'Music': 'موسیقی', 'Harp': 'چنگ', 'Violin': 'ویولن', 'Santur': 'سنتور', 'Volume': 'صدا', 'Play my own music…': 'پخش موسیقی خودم…',
@@ -5032,6 +5073,7 @@ const FA_NOTES = {
   uno: '٢ تا ٤ بازیکن، کارت‌های پرش، برعکس، دو‌تایی، جوکر و جوکر چهارتایی، دورهای امتیازی',
   crossmath: 'جدول متقاطع نامنظم از ٨ معادلهٔ در‌هم‌تنیده، هر چهار عمل، با اعداد تکراری',
   sudoku: 'کلاسیک، یخ (خانه‌های یخ‌زده که با رقم درست باز می‌شوند)، سامورایی (٥ جدول هم‌پوشان) یا قاتل (مجموع‌های قفس‌دار) — برای شروع یکی را انتخاب کنید',
+  dunedrift: 'روی تپه‌های نرم در غروب بلغزید، ستاره جمع کنید و به فانوس برسید — شکست‌ناپذیر و آرام، با ارتقا و موسیقی',
   splashbeads: 'مهره‌های رنگی را با تفنگ آب‌پاش از صفحه بشویید — مرحله‌ها با ستاره، حالت آرام و حالت ۶۰ ثانیه‌ای',
   watersort: 'پازل رنگ‌ها — لایه‌های هم‌رنگ را بین بطری‌ها بریزید تا هر بطری یک رنگ شود؛ با راهنما، بازگشت و مرحله‌های بی‌پایان',
   jenga: 'برج سه‌بعدی چرخان — برای دید ٣٦٠ درجه بکشید، قطعه بردارید و قبل از فروریختن شانس خود را امتحان کنید',
@@ -6259,6 +6301,7 @@ const AZB = {
   'Solved': 'حل ائدیلمیش',
   'Round wins': 'راوند قازانمالاری',
   'Reset all stats': 'بوتون آمارلاری صیفیرلا',
+  'Are you sure you want to reset all stats? This deletes every score and cannot be undone.': 'بوتون آمارلاری صیفیرلاماق ایستدیگینه امینسن؟ بوتون بالالار سیلینیر و گری قایتارماق اولمور.',
   'Helper': 'یاردیمچی',
   'Hit': 'کارت آل',
   'Stand': 'دایان',
@@ -6289,7 +6332,7 @@ const AZB = {
   'Dealer': 'پایلایان',
   'Bo': 'بو',
   'Cy': 'سی',
-  'A table of twenty-six games, all dealt out and ready to play.': 'یئگیرمی‌آلتی اویونلا دولو بیر ماسا، حاضیر و اوینامایا آماده.',
+  'A table of twenty-seven games, all dealt out and ready to play.': 'یئگیرمی‌یئددی اویونلا دولو بیر ماسا، حاضیر و اوینامایا آماده.',
   'Search games...': 'اویونلاری آختار...',
   'Your scores live only in this browser, on this device.': 'نتیجه‌لریز یالنیز بو بروزرده و بو دستگاهدا ساخلانیر.',
   '← Back to the table': '→ ماسایا قاییت',
@@ -6298,7 +6341,7 @@ const AZB = {
   'Free version — some games are locked.': 'پولسوز نسخه — بعضی اویونلار قیفیللیدیر.',
   'Unlock all games': 'بوتون اویونلارین قیفلینی آچ',
   'Strategy': 'استراتژی', 'Roll the Dice': 'زار آتما', 'Recreational': 'ائیلنجه', 'Cards': 'کاغیذ اویونلاری',
-  'Fun & Relax': 'ائیلنجه و راحاتلیق', 'Splash Beads': 'سو چیلنَین مهره‌لر', 'Logic & Puzzles': 'منطق و پازل', 'Party & Arcade': 'مجلیس و آرکاد', 'Stats': 'آمار',
+  'Fun & Relax': 'ائیلنجه و راحاتلیق', 'Splash Beads': 'سو چیلنَین مهره‌لر', 'Dune Drift': 'تپه‌لرده سوزمک', 'Logic & Puzzles': 'منطق و پازل', 'Party & Arcade': 'مجلیس و آرکاد', 'Stats': 'آمار',
   'Water gun': 'سو تفنگی', 'Colour-blind help': 'رنگ‌کورلوغو اۆچون یاردیم', 'Large text': 'ایری یازی', 'Coaching': 'مربّی', 'Game': 'اویون', 'Timer': 'زامان‌اؤلچن', 'Level': 'سویه',
   'Music': 'موسیقی', 'Harp': 'چنگ', 'Violin': 'ویولن', 'Santur': 'سنتور', 'Volume': 'سس', 'Play my own music…': 'اؤز موسیقیمی چال…',
   'About This Game': 'بو اویون حاقدا', 'Picture Licence': 'گورسل/شکیل مجویزی', 'New Game': 'یئنی اویون', 'Change Settings': 'تنظیملری دَییش',
@@ -6330,6 +6373,7 @@ const AZB_NOTES = {
   uno: '٢ ایله ٤ اویونچو، آتلا، گئری، ایکی چک، جوکر و دؤرد چک جوکر، بال دؤورلری',
   crossmath: '٨ بیر-بیرینه بیتیشیک تنگلمه‌دن عبارت قایدا‌سیز کسیشن، دؤرد عمل ایله، تکرار ائدیلن ساییلار',
   sudoku: 'کلاسیک، بوز (دوغرو رقملرله آچیلان دوندوروسموش خانالار)، سامورای (٥ اوست‌اوسته تور) یا قاتیل (قفسلی توپلاملار) — باشلاماق اوچون بیرینی سئچ',
+  dunedrift: 'گون باتاندا یومشاق تپه‌لرده سوز، اولدوز یغ و فانوسا چات — راحات و باغیشلایان، یاخشیلاشدیرما و موسیقی ایله',
   splashbeads: 'رنگلی مهره‌لری سو تاپانچاسی ایله لؤوحه‌دن یو — اولدوزلو مرحله‌لر، راحات و ۶۰ سانیه‌لیک حال',
   watersort: 'رنگ پازلی — هر بوتولدا بیر رنگ قالانا کیمی ائیی رنگ قاتلارینی بوتوللار آراسیندا تؤک؛ کؤمک، گئری آلما و سونسوز مرحله‌لرله',
   jenga: 'سربست فیرلانان اوچ‌اؤلچولو قوله — ٣٦٠ درجه باخماق اوچون سورو، بلوک چک، داغیلماسیندان قاباق شانسینی سینا',
@@ -6845,6 +6889,7 @@ const RENDER_FNS = {
   jenga: renderJenga,
   billiards: renderBilliards,
   watersort: renderWaterSort,
+  dunedrift: renderDuneDrift,
   splashbeads: renderSplashBeads,
   uno: renderUno,
   monopoly: renderMonopoly,
@@ -7192,8 +7237,8 @@ function rudeCheck(s) {
 
 /* ----- Clans (needs the activity service; no accounts, a clan is a short code) ----- */
 const CLAN_TX = {
-  fa: { 'Clan':'قبیله','Clans':'قبیله‌ها','Create a clan':'ساخت قبیله','Clan name':'نام قبیله','Public (anyone can find it)':'عمومی (همه می‌توانند پیدایش کنند)','Create':'بساز','Join with a code':'پیوستن با کد','Join':'بپیوند','Public clans':'قبیله‌های عمومی','Top clans this week':'برترین قبیله‌ها در این هفته','members':'عضو','wins this week':'برد در این هفته','Share clan code':'ارسال کد قبیله','Leave clan':'ترک قبیله','No clans yet — be the first!':'هنوز قبیله‌ای نیست — اولین نفر باشید!','Needs an internet connection.':'اتصال به اینترنت لازم است.','Name needs 3 to 20 letters.':'نام باید ۳ تا ۲۰ حرف باشد.','Clan not found.':'قبیله پیدا نشد.','That clan is full.':'این قبیله پر است.','You are already in a clan.':'شما از قبل در یک قبیله هستید.','Joined!':'پیوستید!','Every win you earn adds a point to your clan. The ranking resets every week.':'هر برد شما یک امتیاز به قبیله می‌افزاید. رتبه‌بندی هر هفته صفر می‌شود.','Clan code':'کد قبیله','Words':'جمله','Emoji':'ایموجی','Stickers':'استیکر','Search GIFs':'جستجوی گیف','Only family-friendly (G-rated) GIFs.':'فقط گیف‌های مناسب برای همه.','That GIF can’t be sent.':'این گیف قابل ارسال نیست.','That search isn’t allowed.':'این جستجو مجاز نیست.','Bravo!':'آفرین!','Not this time':'این بار نه','Let me think…':'بذار فکر کنم…','Oops, my bad':'ای وای، ببخشید','Please?':'خواهش می‌کنم؟','Hold on':'یک لحظه','Good game':'بازی خوبی بود','Too slow!':'خیلی کند!','Congrats!':'تبریک!','So close!':'خیلی نزدیک بود!','Not sure':'مطمئن نیستم','I disagree':'موافق نیستم','Profile':'نمایه','Choose an avatar':'یک آواتار انتخاب کنید','Your name':'نام شما','Save':'ذخیره','Saved.':'ذخیره شد.','That name isn’t allowed.':'این نام مجاز نیست.','Name: 3–16 letters or numbers.':'نام: ۳ تا ۱۶ حرف یا عدد.','Clan chat':'گفتگوی قبیله','Clan chest':'گنجینهٔ قبیله','Give 10 💎':'۱۰ 💎 بده','Claim':'دریافت','level':'سطح','Not enough gems.':'جواهر کافی نیست.','Wait a few seconds.':'چند ثانیه صبر کنید.','Player':'بازیکن','Good game!':'بازی خوبی بود!','Nice move!':'حرکت عالی!','Who wants to play?':'کی بازی می‌کند؟','Let’s go!':'بزن بریم!','Well played!':'دست‌مریزاد!','Thank you!':'ممنون!','Rematch?':'دوباره؟','Good luck!':'موفق باشید!','Hello everyone!':'سلام به همه!','Oops!':'اوه!','I need a hint…':'یک راهنمایی لازم دارم…','Great win!':'برد عالی!' },
-  azb: { 'Clan':'قبیله','Clans':'قبیله‌لر','Create a clan':'قبیله یارات','Clan name':'قبیله آدی','Public (anyone can find it)':'اوْرتاق (هامی تاپا بیلر)','Create':'یارات','Join with a code':'کودلا قوشول','Join':'قوشول','Public clans':'اوْرتاق قبیله‌لر','Top clans this week':'بو هفته‌نین اۆستون قبیله‌لری','members':'اۆزو','wins this week':'بو هفته قازانج','Share clan code':'قبیله کودونو پایلاش','Leave clan':'قبیله‌دن چیخ','No clans yet — be the first!':'هله قبیله یوخدور — ایلک سن اول!','Needs an internet connection.':'اینترنت باغلانتیسی لازیمدیر.','Name needs 3 to 20 letters.':'آد ۳ دن ۲۰ حرفه قدر اولمالیدیر.','Clan not found.':'قبیله تاپیلمادی.','That clan is full.':'بو قبیله دولودور.','You are already in a clan.':'سن آرتیق بیر قبیله‌دهسن.','Joined!':'قوشولدون!','Every win you earn adds a point to your clan. The ranking resets every week.':'هر قازانجین قبیله‌نه بیر بال علاوه ائدیر. سیرالاما هر هفته صیفیرلانیر.','Clan code':'قبیله کودو','Words':'جومله','Emoji':'ایموجی','Stickers':'استیکر','Search GIFs':'گیف آختار','Only family-friendly (G-rated) GIFs.':'یالنیز هامی اۆچون اوْیغون گیفلر.','That GIF can’t be sent.':'بو گیف گؤندریلمز.','That search isn’t allowed.':'بو آختاریش قاداغاندیر.','Bravo!':'آفرین!','Not this time':'بو دفعه یوخ','Let me think…':'بیر دۆشۆنوم…','Oops, my bad':'اوْی، باغیشلا','Please?':'خاهش ائدیرم؟','Hold on':'بیر آن','Good game':'یاخشی اوْیون','Too slow!':'چوْخ یاواش!','Congrats!':'تبریک!','So close!':'چوْخ یاخین ایدی!','Not sure':'امین دئییلم','I disagree':'راضی دئییلم','Profile':'پروفیل','Choose an avatar':'بیر آواتار سئچ','Your name':'آدین','Save':'ساخلا','Saved.':'ساخلانیلدی.','That name isn’t allowed.':'بو آد قاداغاندیر.','Name: 3–16 letters or numbers.':'آد: ۳ دن ۱۶ ایه قدر حرف یا رقم.','Clan chat':'قبیله سؤحبتی','Clan chest':'قبیله خزینه‌سی','Give 10 💎':'۱۰ 💎 ور','Claim':'آل','level':'سویه','Not enough gems.':'گؤهر کافی دئییل.','Wait a few seconds.':'بیر نئچه سانیه گؤزله.','Player':'اوْیونچو','Good game!':'یاخشی اوْیون!','Nice move!':'گؤزل هَرکت!','Who wants to play?':'کیم اوْینایاجاق؟','Let’s go!':'گئدک!','Well played!':'آفرین!','Thank you!':'ساغ اول!','Rematch?':'یئنه؟','Good luck!':'اوغورلار!','Hello everyone!':'هامییا سلام!','Oops!':'اوْی!','I need a hint…':'اییپوجو لازیمدیر…','Great win!':'عالی قازانج!' }
+  fa: { 'Retry':'تلاش دوباره', 'Can’t reach the clan service right now. Check your internet and try again later.':'در حال حاضر به سرویس قبیله دسترسی نیست. اینترنت را بررسی کنید و بعداً دوباره تلاش کنید.', 'Clan codes have 5 characters. A 6-character code is an invite code, not a clan code.':'کد قبیله ۵ نویسه دارد. کد ۶ نویسه‌ای کد دعوت است، نه کد قبیله.', 'A clan code has 5 characters.':'کد قبیله ۵ نویسه دارد.', 'Are you sure you want to leave this clan?':'آیا مطمئنید که می‌خواهید از این قبیله خارج شوید؟', 'Clan':'قبیله','Clans':'قبیله‌ها','Create a clan':'ساخت قبیله','Clan name':'نام قبیله','Public (anyone can find it)':'عمومی (همه می‌توانند پیدایش کنند)','Create':'بساز','Join with a code':'پیوستن با کد','Join':'بپیوند','Public clans':'قبیله‌های عمومی','Top clans this week':'برترین قبیله‌ها در این هفته','members':'عضو','wins this week':'برد در این هفته','Share clan code':'ارسال کد قبیله','Leave clan':'ترک قبیله','No clans yet — be the first!':'هنوز قبیله‌ای نیست — اولین نفر باشید!','Needs an internet connection.':'اتصال به اینترنت لازم است.','Name needs 3 to 20 letters.':'نام باید ۳ تا ۲۰ حرف باشد.','Clan not found.':'قبیله پیدا نشد.','That clan is full.':'این قبیله پر است.','You are already in a clan.':'شما از قبل در یک قبیله هستید.','Joined!':'پیوستید!','Every win you earn adds a point to your clan. The ranking resets every week.':'هر برد شما یک امتیاز به قبیله می‌افزاید. رتبه‌بندی هر هفته صفر می‌شود.','Clan code':'کد قبیله','Words':'جمله','Emoji':'ایموجی','Stickers':'استیکر','Search GIFs':'جستجوی گیف','Only family-friendly (G-rated) GIFs.':'فقط گیف‌های مناسب برای همه.','That GIF can’t be sent.':'این گیف قابل ارسال نیست.','That search isn’t allowed.':'این جستجو مجاز نیست.','Bravo!':'آفرین!','Not this time':'این بار نه','Let me think…':'بذار فکر کنم…','Oops, my bad':'ای وای، ببخشید','Please?':'خواهش می‌کنم؟','Hold on':'یک لحظه','Good game':'بازی خوبی بود','Too slow!':'خیلی کند!','Congrats!':'تبریک!','So close!':'خیلی نزدیک بود!','Not sure':'مطمئن نیستم','I disagree':'موافق نیستم','Profile':'نمایه','Choose an avatar':'یک آواتار انتخاب کنید','Your name':'نام شما','Save':'ذخیره','Saved.':'ذخیره شد.','That name isn’t allowed.':'این نام مجاز نیست.','Name: 3–16 letters or numbers.':'نام: ۳ تا ۱۶ حرف یا عدد.','Clan chat':'گفتگوی قبیله','Clan chest':'گنجینهٔ قبیله','Give 10 💎':'۱۰ 💎 بده','Claim':'دریافت','level':'سطح','Not enough gems.':'جواهر کافی نیست.','Wait a few seconds.':'چند ثانیه صبر کنید.','Player':'بازیکن','Good game!':'بازی خوبی بود!','Nice move!':'حرکت عالی!','Who wants to play?':'کی بازی می‌کند؟','Let’s go!':'بزن بریم!','Well played!':'دست‌مریزاد!','Thank you!':'ممنون!','Rematch?':'دوباره؟','Good luck!':'موفق باشید!','Hello everyone!':'سلام به همه!','Oops!':'اوه!','I need a hint…':'یک راهنمایی لازم دارم…','Great win!':'برد عالی!' },
+  azb: { 'Retry':'یئنه چالیش', 'Can’t reach the clan service right now. Check your internet and try again later.':'ایندی قبیله خیدمتینه چاتماق اولمور. اینترنتی یوخلا و سونرا یئنه چالیش.', 'Clan codes have 5 characters. A 6-character code is an invite code, not a clan code.':'قبیله کودو ۵ سیمولدور. ۶ سیمول‌لو کود دعوت کودودور، قبیله کودو دئییل.', 'A clan code has 5 characters.':'قبیله کودو ۵ سیمولدور.', 'Are you sure you want to leave this clan?':'بو قبیله‌دن چیخماق ایستدیگینه امینسن؟', 'Clan':'قبیله','Clans':'قبیله‌لر','Create a clan':'قبیله یارات','Clan name':'قبیله آدی','Public (anyone can find it)':'اوْرتاق (هامی تاپا بیلر)','Create':'یارات','Join with a code':'کودلا قوشول','Join':'قوشول','Public clans':'اوْرتاق قبیله‌لر','Top clans this week':'بو هفته‌نین اۆستون قبیله‌لری','members':'اۆزو','wins this week':'بو هفته قازانج','Share clan code':'قبیله کودونو پایلاش','Leave clan':'قبیله‌دن چیخ','No clans yet — be the first!':'هله قبیله یوخدور — ایلک سن اول!','Needs an internet connection.':'اینترنت باغلانتیسی لازیمدیر.','Name needs 3 to 20 letters.':'آد ۳ دن ۲۰ حرفه قدر اولمالیدیر.','Clan not found.':'قبیله تاپیلمادی.','That clan is full.':'بو قبیله دولودور.','You are already in a clan.':'سن آرتیق بیر قبیله‌دهسن.','Joined!':'قوشولدون!','Every win you earn adds a point to your clan. The ranking resets every week.':'هر قازانجین قبیله‌نه بیر بال علاوه ائدیر. سیرالاما هر هفته صیفیرلانیر.','Clan code':'قبیله کودو','Words':'جومله','Emoji':'ایموجی','Stickers':'استیکر','Search GIFs':'گیف آختار','Only family-friendly (G-rated) GIFs.':'یالنیز هامی اۆچون اوْیغون گیفلر.','That GIF can’t be sent.':'بو گیف گؤندریلمز.','That search isn’t allowed.':'بو آختاریش قاداغاندیر.','Bravo!':'آفرین!','Not this time':'بو دفعه یوخ','Let me think…':'بیر دۆشۆنوم…','Oops, my bad':'اوْی، باغیشلا','Please?':'خاهش ائدیرم؟','Hold on':'بیر آن','Good game':'یاخشی اوْیون','Too slow!':'چوْخ یاواش!','Congrats!':'تبریک!','So close!':'چوْخ یاخین ایدی!','Not sure':'امین دئییلم','I disagree':'راضی دئییلم','Profile':'پروفیل','Choose an avatar':'بیر آواتار سئچ','Your name':'آدین','Save':'ساخلا','Saved.':'ساخلانیلدی.','That name isn’t allowed.':'بو آد قاداغاندیر.','Name: 3–16 letters or numbers.':'آد: ۳ دن ۱۶ ایه قدر حرف یا رقم.','Clan chat':'قبیله سؤحبتی','Clan chest':'قبیله خزینه‌سی','Give 10 💎':'۱۰ 💎 ور','Claim':'آل','level':'سویه','Not enough gems.':'گؤهر کافی دئییل.','Wait a few seconds.':'بیر نئچه سانیه گؤزله.','Player':'اوْیونچو','Good game!':'یاخشی اوْیون!','Nice move!':'گؤزل هَرکت!','Who wants to play?':'کیم اوْینایاجاق؟','Let’s go!':'گئدک!','Well played!':'آفرین!','Thank you!':'ساغ اول!','Rematch?':'یئنه؟','Good luck!':'اوغورلار!','Hello everyone!':'هامییا سلام!','Oops!':'اوْی!','I need a hint…':'اییپوجو لازیمدیر…','Great win!':'عالی قازانج!' }
 };
 function clT(s) { const d = CLAN_TX[APP_LANG]; return (d && d[s]) || s; }
 
@@ -7232,10 +7277,11 @@ function profileShowDialog() {
     msg.textContent = clT('Saved.'); msg.className = 'lic-msg good'; setTimeout(close, 700);
   });
 }
+let clanLastErr = '';
 function clanApi(path, params) {
-  if (!/^https:\/\//i.test(ADS.countUrl)) return Promise.resolve(null);
+  if (!/^https:\/\//i.test(ADS.countUrl)) { clanLastErr = 'no service address in this file'; return Promise.resolve(null); }
   const q = new URLSearchParams(Object.assign({ id: adsClientId() }, profileName() ? { n: profileName(), a: String(profileAv()) } : {}, params || {}));
-  return fetch(ADS.countUrl.replace(/\/$/, '') + '/clan/' + path + '?' + q).then(r => r.json()).catch(() => null);
+  return fetch(ADS.countUrl.replace(/\/$/, '') + '/clan/' + path + '?' + q).then(r => r.json().catch(() => { clanLastErr = 'bad reply (HTTP ' + r.status + ')'; return null; })).catch((e) => { clanLastErr = ((e && e.name) || 'Error') + ': ' + ((e && e.message) || 'failed') + ' [' + (location.protocol || '?') + ']'; return null; });
 }
 async function clanSync() {
   if (!safeGet('clan-code', '')) return;
@@ -7289,7 +7335,7 @@ function clanShowDialog() {
   document.getElementById('clanClose').addEventListener('click', close);
   clanRender();
 }
-const clanErr = (r) => !r ? clT('Needs an internet connection.') : r.error === 'name' ? clT('Name needs 3 to 20 letters.') : r.error === 'nofound' ? clT('Clan not found.') : r.error === 'full' ? clT('That clan is full.') : r.error === 'already' ? clT('You are already in a clan.') : r.error === 'rude' ? clT('That name isn’t allowed.') : r.error === 'uname' ? clT('Name: 3–16 letters or numbers.') : clT('Needs an internet connection.');
+const clanErr = (r) => !r ? clT('Can’t reach the clan service right now. Check your internet and try again later.') : r.error === 'name' ? clT('Name needs 3 to 20 letters.') : r.error === 'nofound' ? clT('Clan not found.') : r.error === 'full' ? clT('That clan is full.') : r.error === 'already' ? clT('You are already in a clan.') : r.error === 'rude' ? clT('That name isn’t allowed.') : r.error === 'uname' ? clT('Name: 3–16 letters or numbers.') : clT('Needs an internet connection.');
 function clanRows(list, joinable) {
   if (!list || !list.length) return '<p class="lic-text">' + adsEsc(clT('No clans yet — be the first!')) + '</p>';
   return '<div class="clan-list">' + list.map((c, i) => '<div class="clan-row"><span class="clan-rank">' + (i + 1) + '</span><span class="clan-name"><b>' + adsEsc(c.name) + '</b><small>' + c.members + ' ' + adsEsc(clT('members')) + ' · ' + c.wins + ' ' + adsEsc(clT('wins this week')) + '</small></span>' + (joinable ? '<button class="btn ghost clan-join" type="button" data-code="' + adsEsc(c.code) + '">' + adsEsc(clT('Join')) + '</button>' : '') + '</div>').join('') + '</div>';
@@ -7299,7 +7345,7 @@ async function clanRender() {
   body.innerHTML = '<p class="lic-text">…</p>';
   const me = await clanApi('me');
   if (!document.getElementById('clanBody')) return;
-  if (!me) { body.innerHTML = '<p class="lic-text">' + adsEsc(clT('Needs an internet connection.')) + '</p>'; return; }
+  if (!me) { body.innerHTML = '<p class="lic-text">' + adsEsc(clT('Needs an internet connection.')) + '</p><p class="lic-text" style="font-size:.8rem;opacity:.7;word-break:break-all;">Details: ' + adsEsc(clanLastErr || '—') + '</p><div class="btn-row" style="justify-content:center;"><button class="btn ghost" id="clanRetry" type="button">' + adsEsc(clT('Retry')) + '</button></div>'; const rb = document.getElementById('clanRetry'); if (rb) rb.addEventListener('click', () => clanRender()); return; }
   const msgHtml = '<div class="lic-msg" id="clanMsg" role="status"></div>';
   const setMsg = (t, good) => { const m = document.getElementById('clanMsg'); if (m) { m.textContent = t; m.className = 'lic-msg ' + (good ? 'good' : 'bad'); } };
   const top = await clanApi('top');
@@ -7348,7 +7394,7 @@ async function clanRender() {
       };
       gq.addEventListener('input', () => { clearTimeout(timer); timer = setTimeout(search, 450); });
     }
-    document.getElementById('clanLeave').addEventListener('click', async () => { await clanApi('leave'); safeSet('clan-code', ''); safeSet('clan-wins', null); clanRender(); });
+    document.getElementById('clanLeave').addEventListener('click', async () => { if (!confirm(clT('Are you sure you want to leave this clan?'))) return; await clanApi('leave'); safeSet('clan-code', ''); safeSet('clan-wins', null); clanRender(); });
     return;
   }
   safeSet('clan-code', '');
@@ -7363,7 +7409,7 @@ async function clanRender() {
     + '<p class="lic-text" style="margin-top:14px;"><b>' + adsEsc(clT('Public clans')) + '</b></p>' + clanRows(list && list.clans, true);
   const afterJoin = (r) => { if (r && r.ok) { safeSet('clan-code', r.clan.code); safeSet('clan-wins', totalWinsAcrossGames()); clanRender(); } else setMsg(clanErr(r), false); };
   document.getElementById('clanCreate').addEventListener('click', async () => { const cn = document.getElementById('clanName').value; if (rudeCheck(cn)) { setMsg(clT('That name isn’t allowed.'), false); return; } afterJoin(await clanApi('create', { name: document.getElementById('clanName').value, public: document.getElementById('clanPublic').checked ? '1' : '0' })); });
-  document.getElementById('clanGo').addEventListener('click', async () => afterJoin(await clanApi('join', { code: document.getElementById('clanCode').value })));
+  document.getElementById('clanGo').addEventListener('click', async () => { const cv = document.getElementById('clanCode').value.trim().toUpperCase(); if (cv.length !== 5) { setMsg(clT(cv.length === 6 ? 'Clan codes have 5 characters. A 6-character code is an invite code, not a clan code.' : 'A clan code has 5 characters.'), false); return; } afterJoin(await clanApi('join', { code: cv })); });
   body.querySelectorAll('.clan-join').forEach(b => b.addEventListener('click', async () => afterJoin(await clanApi('join', { code: b.dataset.code }))));
 }
 
@@ -18721,6 +18767,7 @@ const SCORE_SOURCES = [
   { name: 'Munch', key: 'munch-stats', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'}] },
   { name: 'Darts', key: 'dt-stats', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'}] },
   { name: 'Snake Arena', key: 'sn-stats', fields: [{k:'best',label:'Best length'},{k:'wins',label:'Rounds won'},{k:'kills',label:'Snakes trapped'}] },
+  { name: 'Dune Drift', key: 'dd-stats', fields: [{k:'levels',label:'Levels cleared'},{k:'best',label:'Highest level'},{k:'stars',label:'Stars collected'}] },
   { name: 'Splash Beads', key: 'sb-stats', fields: [{k:'levels',label:'Levels cleared'},{k:'best',label:'Highest level'},{k:'bestTimed',label:'Best timed run'}] },
   { name: 'Water Sort', key: 'ws-stats', fields: [{k:'levels',label:'Levels cleared'},{k:'best',label:'Highest level'}] },
   { name: 'Othello', key: 'oth-stats', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'}] },
@@ -18771,6 +18818,7 @@ function renderAllGamesScore() {
     </div>
   `;
   document.getElementById('scoreReset').addEventListener('click', () => {
+    if (!confirm(tr('Are you sure you want to reset all stats? This deletes every score and cannot be undone.'))) return;
     SCORE_SOURCES.forEach(s => { try { localStorage.removeItem(s.key); } catch (e) {} });
     renderAllGamesScore();
   });
@@ -20981,13 +21029,79 @@ const SB_W = 360, SB_H = 480, SB_R = 12;
 const SB_COLORS = ['#e8564a', '#f08a3c', '#f2c744', '#5cb85c', '#3fb6a8', '#4a90d9', '#7a6bd6', '#d968b0', '#ffffff', '#8a5a3c'];
 const SB_SHAPES = ['circle', 'stripes', 'heart', 'diamond', 'smiley', 'ring', 'rainbow', 'star', 'checker', 'flower'];
 const SB_TX = {
-  fa: { 'Splash Beads':'مهره‌های آب‌پاش', 'Wash every bead off the board with your water gun.':'با تفنگ آب‌پاش همهٔ مهره‌ها را از صفحه بشویید.', 'Levels':'مرحله‌ها', 'Relax':'آرام', 'Timed':'زمان‌دار', 'New beads':'مهره‌های تازه', 'Retry':'دوباره', 'Next level':'مرحلهٔ بعد', 'Level':'مرحله', 'Beads left':'مهره‌های باقی‌مانده', 'Water':'آب', 'Time':'زمان', 'Cleared':'پاک‌شده', 'Best':'بهترین', 'Level complete!':'مرحله تمام شد!', 'Out of water — try again.':'آب تمام شد — دوباره امتحان کنید.', 'Time is up!':'زمان تمام شد!', 'Drag to aim, hold to spray.':'برای نشانه‌گیری بکشید، برای پاشیدن نگه دارید.', 'Board is clean — fresh beads!':'صفحه تمیز شد — مهره‌های تازه!', 'Spray the beads away. Drag to aim, hold to spray.':'مهره‌ها را با آب بشویید. برای نشانه‌گیری بکشید و برای پاشیدن نگه دارید.', 'A relaxing, no-pressure game: just you and a water gun.':'یک بازی آرام و بدون فشار: فقط شما و یک تفنگ آب‌پاش.', 'Drag your finger (or the mouse) over the board to aim the water gun. Keep it held down to spray.':'انگشت (یا ماوس) را روی صفحه بکشید تا تفنگ نشانه برود. برای پاشیدن نگه دارید.', 'Levels: your water tank is limited. Clear the board with water to spare to earn up to three stars.':'مرحله‌ها: مخزن آب محدود است. هر چه آب بیشتری بماند، تا سه ستاره می‌گیرید.', 'Relax: unlimited water and no clock.':'آرام: آب نامحدود و بدون ساعت.', 'Timed: clear as many beads as you can in 60 seconds.':'زمان‌دار: در ۶۰ ثانیه تا می‌توانید مهره بشویید.', 'Beads with a dark ring are stuck harder and need more water.':'مهره‌های دارای حلقهٔ تیره سخت‌تر چسبیده‌اند و آب بیشتری لازم دارند.', 'Keep the spray on one bead until it pops off, then sweep along the row.':'آب را روی یک مهره نگه دارید تا کنده شود، سپس در امتداد ردیف بکشید.', 'Short bursts waste less water than a long sweep.':'پاشیدن‌های کوتاه از کشیدن طولانی آب کمتری هدر می‌دهد.', 'Aim high: the water drops a little on its way.':'کمی بالاتر نشانه بگیرید: آب در مسیر کمی پایین می‌افتد.', 'Beads washed away':'مهره شسته‌شده', 'Spray':'پاشیدن' },
-  azb: { 'Splash Beads':'سو چیلنَین مهره‌لر', 'Wash every bead off the board with your water gun.':'سو تاپانچانلا بوتون مهره‌لری لؤوحه‌دن یو.', 'Levels':'مرحله‌لر', 'Relax':'راحات', 'Timed':'زامانلی', 'New beads':'تزه مهره‌لر', 'Retry':'یئنه', 'Next level':'سونراکی مرحله', 'Level':'مرحله', 'Beads left':'قالان مهره‌لر', 'Water':'سو', 'Time':'زامان', 'Cleared':'تمیزلنمیش', 'Best':'ان یاخشی', 'Level complete!':'مرحله باشا چاتدی!', 'Out of water — try again.':'سو قورتاردی — یئنه چالیش.', 'Time is up!':'زامان قورتاردی!', 'Drag to aim, hold to spray.':'هدفه آلماق اۆچون سۆرۆشدۆر، چیلمک اۆچون ساخلا.', 'Board is clean — fresh beads!':'لؤوحه تمیزدیر — تزه مهره‌لر!', 'Spray the beads away. Drag to aim, hold to spray.':'مهره‌لری سویلا یو. هدفه آلماق اۆچون سۆرۆشدۆر، چیلمک اۆچون ساخلا.', 'A relaxing, no-pressure game: just you and a water gun.':'راحاتلادیجی، فشارسیز اوْیون: یالنیز سن و بیر سو تاپانچاسی.', 'Drag your finger (or the mouse) over the board to aim the water gun. Keep it held down to spray.':'بارماغینی (یا ماوسو) لؤوحه اۆستوندن سۆرۆشدۆر. چیلمک اۆچون ساخلا.', 'Levels: your water tank is limited. Clear the board with water to spare to earn up to three stars.':'مرحله‌لر: سو انباری محدوددور. نه قدر چوْخ سو قالسا، ۳ اولدوزا قدر آلیرسان.', 'Relax: unlimited water and no clock.':'راحات: محدودیتسیز سو و ساعتسیز.', 'Timed: clear as many beads as you can in 60 seconds.':'زامانلی: ۶۰ سانیه‌ده نه قدر مهره یویا بیلسن.', 'Beads with a dark ring are stuck harder and need more water.':'قارا حلقه‌لی مهره‌لر سرت یاپیشیب و چوْخ سو لازیمدیر.', 'Keep the spray on one bead until it pops off, then sweep along the row.':'سویو بیر مهره‌نین اۆستوندن آلینانا قدر ساخلا، سونرا ساتیر بویو سۆرۆشدۆر.', 'Short bursts waste less water than a long sweep.':'قیسا چیلمک اوزون سۆرۆشدۆرمکدن آز سو ایشلدیر.', 'Aim high: the water drops a little on its way.':'بیرآز یوخاری هدفه آل: سو یولدا آز آشاغی دۆشور.', 'Beads washed away':'یویولان مهره', 'Spray':'چیل' }
+  fa: { 'Splash Beads':'مهره‌های آب‌پاش', 'Wash every bead off the board with your water gun.':'با تفنگ آب‌پاش همهٔ مهره‌ها را از صفحه بشویید.', 'Levels':'مرحله‌ها', 'Relax':'آرام', 'Timed':'زمان‌دار', 'New beads':'مهره‌های تازه', 'Retry':'دوباره', 'Next level':'مرحلهٔ بعد', 'Level':'مرحله', 'Beads left':'مهره‌های باقی‌مانده', 'Water':'آب', 'Time':'زمان', 'Cleared':'پاک‌شده', 'Best':'بهترین', 'Level complete!':'مرحله تمام شد!', 'Out of water — try again.':'آب تمام شد — دوباره امتحان کنید.', 'Time is up!':'زمان تمام شد!', 'Drag to aim, hold to spray.':'برای نشانه‌گیری بکشید، برای پاشیدن نگه دارید.', 'Board is clean — fresh beads!':'صفحه تمیز شد — مهره‌های تازه!', 'Spray the beads away. Drag to aim, hold to spray.':'مهره‌ها را با آب بشویید. برای نشانه‌گیری بکشید و برای پاشیدن نگه دارید.', 'A relaxing, no-pressure game: just you and a water gun.':'یک بازی آرام و بدون فشار: فقط شما و یک تفنگ آب‌پاش.', 'Drag your finger (or the mouse) over the board to aim the water gun. Keep it held down to spray.':'انگشت (یا ماوس) را روی صفحه بکشید تا تفنگ نشانه برود. برای پاشیدن نگه دارید.', 'Levels: your water tank is limited. Clear the board with water to spare to earn up to three stars.':'مرحله‌ها: مخزن آب محدود است. هر چه آب بیشتری بماند، تا سه ستاره می‌گیرید.', 'Relax: unlimited water and no clock.':'آرام: آب نامحدود و بدون ساعت.', 'Timed: clear as many beads as you can in 60 seconds.':'زمان‌دار: در ۶۰ ثانیه تا می‌توانید مهره بشویید.', 'Beads with a dark ring are stuck harder and need more water.':'مهره‌های دارای حلقهٔ تیره سخت‌تر چسبیده‌اند و آب بیشتری لازم دارند.', 'Keep the spray on one bead until it pops off, then sweep along the row.':'آب را روی یک مهره نگه دارید تا کنده شود، سپس در امتداد ردیف بکشید.', 'Short bursts waste less water than a long sweep.':'پاشیدن‌های کوتاه از کشیدن طولانی آب کمتری هدر می‌دهد.', 'Aim high: the water drops a little on its way.':'کمی بالاتر نشانه بگیرید: آب در مسیر کمی پایین می‌افتد.', 'Beads washed away':'مهره شسته‌شده', 'Spray':'پاشیدن', 'Sound: On':'صدا: روشن', 'Sound: Off':'صدا: خاموش', 'Water sounds: spray, splash and soft drips. Turn them off with the Sound button.':'صدای آب: پاشیدن، چلپ‌چلوپ و چکه‌های آرام. با دکمهٔ صدا خاموش می‌شود.' },
+  azb: { 'Splash Beads':'سو چیلنَین مهره‌لر', 'Wash every bead off the board with your water gun.':'سو تاپانچانلا بوتون مهره‌لری لؤوحه‌دن یو.', 'Levels':'مرحله‌لر', 'Relax':'راحات', 'Timed':'زامانلی', 'New beads':'تزه مهره‌لر', 'Retry':'یئنه', 'Next level':'سونراکی مرحله', 'Level':'مرحله', 'Beads left':'قالان مهره‌لر', 'Water':'سو', 'Time':'زامان', 'Cleared':'تمیزلنمیش', 'Best':'ان یاخشی', 'Level complete!':'مرحله باشا چاتدی!', 'Out of water — try again.':'سو قورتاردی — یئنه چالیش.', 'Time is up!':'زامان قورتاردی!', 'Drag to aim, hold to spray.':'هدفه آلماق اۆچون سۆرۆشدۆر، چیلمک اۆچون ساخلا.', 'Board is clean — fresh beads!':'لؤوحه تمیزدیر — تزه مهره‌لر!', 'Spray the beads away. Drag to aim, hold to spray.':'مهره‌لری سویلا یو. هدفه آلماق اۆچون سۆرۆشدۆر، چیلمک اۆچون ساخلا.', 'A relaxing, no-pressure game: just you and a water gun.':'راحاتلادیجی، فشارسیز اوْیون: یالنیز سن و بیر سو تاپانچاسی.', 'Drag your finger (or the mouse) over the board to aim the water gun. Keep it held down to spray.':'بارماغینی (یا ماوسو) لؤوحه اۆستوندن سۆرۆشدۆر. چیلمک اۆچون ساخلا.', 'Levels: your water tank is limited. Clear the board with water to spare to earn up to three stars.':'مرحله‌لر: سو انباری محدوددور. نه قدر چوْخ سو قالسا، ۳ اولدوزا قدر آلیرسان.', 'Relax: unlimited water and no clock.':'راحات: محدودیتسیز سو و ساعتسیز.', 'Timed: clear as many beads as you can in 60 seconds.':'زامانلی: ۶۰ سانیه‌ده نه قدر مهره یویا بیلسن.', 'Beads with a dark ring are stuck harder and need more water.':'قارا حلقه‌لی مهره‌لر سرت یاپیشیب و چوْخ سو لازیمدیر.', 'Keep the spray on one bead until it pops off, then sweep along the row.':'سویو بیر مهره‌نین اۆستوندن آلینانا قدر ساخلا، سونرا ساتیر بویو سۆرۆشدۆر.', 'Short bursts waste less water than a long sweep.':'قیسا چیلمک اوزون سۆرۆشدۆرمکدن آز سو ایشلدیر.', 'Aim high: the water drops a little on its way.':'بیرآز یوخاری هدفه آل: سو یولدا آز آشاغی دۆشور.', 'Beads washed away':'یویولان مهره', 'Spray':'چیل', 'Sound: On':'سس: آچیق', 'Sound: Off':'سس: باغلی', 'Water sounds: spray, splash and soft drips. Turn them off with the Sound button.':'سو سسلری: چیلمک، چپ‌چپ و یاواش دامجیلار. سس دوگمه‌سی ایله باغلانیر.' }
 };
 function sbT(s) { const d = SB_TX[APP_LANG]; return (d && d[s]) || s; }
 let sbMode = 'levels', sbLevel = 1, sbBeads = [], sbDrops = [], sbFalling = [], sbSplash = [], sbWater = 0, sbWaterCap = 1, sbCleared = 0, sbTimeLeft = 60;
 let sbState = 'idle', sbRaf = 0, sbAim = null, sbSpraying = false, sbLastT = 0, sbStats = null, sbCtx = null, sbCanvas = null, sbScale = 1, sbPeak = 0;
 const sbRand = (a, b) => a + Math.random() * (b - a);
+/* Water sounds: all synthesized with Web Audio (no sound files). Own sound button, remembered. */
+const SBS = { ctx: null, out: null, noise: null, spray: null, sprayOn: false, on: safeGet('sb-sound', true) !== false, lastHit: 0, lastFall: 0, lastTick: -1 };
+function sbAudio() {
+  if (!SBS.on) return null;
+  try {
+    if (!SBS.ctx) {
+      const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+      const ctx = new AC(), out = ctx.createGain(); out.gain.value = 0.32;
+      const comp = ctx.createDynamicsCompressor(); out.connect(comp); comp.connect(ctx.destination);
+      const len = ctx.sampleRate * 2, buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+      SBS.ctx = ctx; SBS.out = out; SBS.noise = buf;
+    }
+    if (SBS.ctx.state === 'suspended') SBS.ctx.resume();
+    return SBS.ctx;
+  } catch (e) { return null; }
+}
+// Chrome on phones and tablets only allows sound after a finger LIFTS (not on the press), so unlock on release too.
+function sbUnlock() {
+  const c = sbAudio(); if (!c) return;
+  try { if (c.state !== 'running') c.resume(); const b = c.createBuffer(1, 1, c.sampleRate), s = c.createBufferSource(); s.buffer = b; s.connect(c.destination); s.start(0); } catch (e) {}
+}
+function sbSprayLevel(on) {
+  if (on === SBS.sprayOn) return;
+  SBS.sprayOn = on;
+  try {
+    if (on && !sbAudio()) { SBS.sprayOn = false; return; }
+    const c = SBS.ctx; if (!c) return;
+    if (!SBS.spray) {
+      const src = c.createBufferSource(); src.buffer = SBS.noise; src.loop = true;
+      const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2600; bp.Q.value = 0.7;
+      const g = c.createGain(); g.gain.value = 0;
+      src.connect(bp); bp.connect(g); g.connect(SBS.out); src.start();
+      SBS.spray = { src, g };
+    }
+    const t = c.currentTime; SBS.spray.g.gain.cancelScheduledValues(t); SBS.spray.g.gain.setTargetAtTime(on ? 0.2 : 0, t, on ? 0.04 : 0.09);
+  } catch (e) {}
+}
+function sbBlip(c, t, f0, f1, dur, vol, type) {
+  const o = c.createOscillator(), g = c.createGain(); o.type = type || 'sine';
+  o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(Math.max(30, f1), t + dur);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g); g.connect(SBS.out); o.start(t); o.stop(t + dur + 0.05);
+}
+function sbSndHit(hard) {
+  const c = sbAudio(); if (!c) return; const t = c.currentTime; if (t - SBS.lastHit < 0.07) return; SBS.lastHit = t;
+  try {
+    const s = c.createBufferSource(); s.buffer = SBS.noise; const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = sbRand(1600, 3400); bp.Q.value = 1.2;
+    const g = c.createGain(); g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.22, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.09);
+    s.connect(bp); bp.connect(g); g.connect(SBS.out); s.start(t, sbRand(0, 1.5), 0.12);
+    const f = hard ? sbRand(280, 380) : sbRand(650, 1000); sbBlip(c, t, f, f * 1.7, 0.07, 0.1);
+  } catch (e) {}
+}
+function sbSndFall() {
+  const c = sbAudio(); if (!c) return; const t = c.currentTime; if (t - SBS.lastFall < 0.05) return; SBS.lastFall = t;
+  try { const f = sbRand(300, 460); sbBlip(c, t, f, f * 2.3, 0.13, 0.16); } catch (e) {}
+}
+function sbSndDrip() { const c = sbAudio(); if (!c) return; try { sbBlip(c, c.currentTime, 1300, 520, 0.09, 0.14); } catch (e) {} }
+function sbSndWin() {
+  const c = sbAudio(); if (!c) return;
+  try { [523.25, 659.25, 783.99, 1046.5, 1318.5].forEach((f, i) => { const t = c.currentTime + i * 0.11; sbBlip(c, t, f, f * 0.998, 0.55, 0.17, 'triangle'); sbBlip(c, t, f * 2, f * 2, 0.35, 0.04); }); } catch (e) {}
+}
+function sbSndEnd(good) {
+  const c = sbAudio(); if (!c) return;
+  try { const n = good ? [659.25, 523.25] : [392, 293.66]; n.forEach((f, i) => sbBlip(c, c.currentTime + i * 0.2, f, f * 0.99, 0.5, 0.15, 'triangle')); } catch (e) {}
+}
 function sbInShape(shape, nx, ny) {
   const r = Math.hypot(nx, ny);
   switch (shape) {
@@ -21038,7 +21152,7 @@ function sbSetup(keepStats) {
   const total = sbBeads.reduce((s, b) => s + b.max, 0);
   sbWaterCap = sbMode === 'levels' ? Math.ceil(total * Math.max(1.6, 3.2 - sbLevel * 0.16)) : 1;
   sbWater = sbWaterCap;
-  if (sbMode === 'timed') { sbTimeLeft = 60; sbCleared = 0; }
+  if (sbMode === 'timed') { sbTimeLeft = 60; sbCleared = 0; SBS.lastTick = -1; }
   sbState = 'play'; sbPeak = sbBeads.length;
 }
 function sbSaveStats() { safeSet('sb-stats', sbStats); }
@@ -21062,22 +21176,23 @@ function renderSplashBeads(resume) {
         <li>${adsEsc(sbT('Relax: unlimited water and no clock.'))}</li>
         <li>${adsEsc(sbT('Timed: clear as many beads as you can in 60 seconds.'))}</li>
         <li>${adsEsc(sbT('Beads with a dark ring are stuck harder and need more water.'))}</li>
+        <li>${adsEsc(sbT('Water sounds: spray, splash and soft drips. Turn them off with the Sound button.'))}</li>
       </ul>`)}
     ${coachBlock([sbT('Keep the spray on one bead until it pops off, then sweep along the row.'), sbT('Short bursts waste less water than a long sweep.'), sbT('Aim high: the water drops a little on its way.')])}
     <div class="diff-row sb-modes" id="sbModes" role="group">${['levels', 'relax', 'timed'].map(m => `<button type="button" class="diff-btn${m === sbMode ? ' active' : ''}" data-mode="${m}">${adsEsc(sbT(m === 'levels' ? 'Levels' : m === 'relax' ? 'Relax' : 'Timed'))}</button>`).join('')}</div>
     <div class="sb-hud"><span id="sbInfo"></span><div class="sb-tank" id="sbTankWrap"><div class="sb-tank-fill" id="sbTank"></div></div></div>
     <div class="sb-stage"><canvas id="sbCanvas" tabindex="0" role="img" aria-label="${adsEsc(sbT('Drag to aim, hold to spray.'))}"></canvas></div>
     <div class="lic-msg" id="sbMsg" role="status" aria-live="polite"></div>
-    <div class="btn-row sb-actions" style="justify-content:center;"><button class="btn ghost" id="sbNew" type="button">${adsEsc(sbT('New beads'))}</button><button class="btn" id="sbNext" type="button" hidden>${adsEsc(sbT('Next level'))}</button></div>
+    <div class="btn-row sb-actions" style="justify-content:center;"><button class="btn ghost" id="sbNew" type="button">${adsEsc(sbT('New beads'))}</button><button class="btn ghost" id="sbSound" type="button">${adsEsc(sbT(SBS.on ? 'Sound: On' : 'Sound: Off'))}</button><button class="btn" id="sbNext" type="button" hidden>${adsEsc(sbT('Next level'))}</button></div>
   `;
   sbCanvas = document.getElementById('sbCanvas');
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   sbCanvas.width = SB_W * dpr; sbCanvas.height = SB_H * dpr; sbCtx = sbCanvas.getContext('2d'); sbCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const toGame = (e) => { const r = sbCanvas.getBoundingClientRect(); return { x: (e.clientX - r.left) * SB_W / r.width, y: (e.clientY - r.top) * SB_H / r.height }; };
-  sbCanvas.addEventListener('pointerdown', (e) => { try { sbCanvas.setPointerCapture(e.pointerId); } catch (err) {} sbAim = toGame(e); sbSpraying = true; e.preventDefault(); });
+  sbCanvas.addEventListener('pointerdown', (e) => { try { sbCanvas.setPointerCapture(e.pointerId); } catch (err) {} sbAim = toGame(e); sbSpraying = true; sbAudio(); e.preventDefault(); });
   sbCanvas.addEventListener('pointermove', (e) => { if (sbSpraying || e.pointerType === 'mouse') sbAim = toGame(e); });
-  const stop = () => { sbSpraying = false; };
-  sbCanvas.addEventListener('pointerup', stop); sbCanvas.addEventListener('pointercancel', stop); sbCanvas.addEventListener('pointerleave', () => { if (sbCanvas && !sbCanvas.hasPointerCapture) stop(); });
+  const stop = () => { sbSpraying = false; sbUnlock(); };
+  sbCanvas.addEventListener('touchend', sbUnlock, { passive: true }); sbCanvas.addEventListener('click', sbUnlock); sbCanvas.addEventListener('pointerup', stop); sbCanvas.addEventListener('pointercancel', stop); sbCanvas.addEventListener('pointerleave', () => { if (sbCanvas && !sbCanvas.hasPointerCapture) stop(); });
   sbCanvas.addEventListener('keydown', (e) => {
     const a = sbAim || { x: SB_W / 2, y: SB_H / 2 }, st = 14;
     if (e.key === 'ArrowLeft') a.x -= st; else if (e.key === 'ArrowRight') a.x += st; else if (e.key === 'ArrowUp') a.y -= st; else if (e.key === 'ArrowDown') a.y += st;
@@ -21086,6 +21201,7 @@ function renderSplashBeads(resume) {
   });
   sbCanvas.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'Enter') sbSpraying = false; });
   document.getElementById('sbModes').querySelectorAll('.diff-btn').forEach(b => b.addEventListener('click', () => { sbMode = b.dataset.mode; if (sbMode === 'levels') sbLevel = Math.max(1, sbStats.next || 1); sbSaveProgress(); renderSplashBeads(false); }));
+  document.getElementById('sbSound').addEventListener('click', (e) => { SBS.on = !SBS.on; safeSet('sb-sound', SBS.on); e.currentTarget.textContent = sbT(SBS.on ? 'Sound: On' : 'Sound: Off'); if (!SBS.on) sbSprayLevel(false); else { sbUnlock(); sbSndDrip(); } });
   document.getElementById('sbNew').addEventListener('click', () => { sbSetup(); sbSetMsg(''); document.getElementById('sbNext').hidden = true; sbSaveProgress(); });
   document.getElementById('sbNext').addEventListener('click', () => { if (sbMode === 'levels' && sbState === 'won') sbLevel++; sbSetup(); sbSetMsg(''); document.getElementById('sbNext').hidden = true; sbSaveProgress(); });
   sbSetup(); sbSaveProgress(); sbSetMsg(sbT('Drag to aim, hold to spray.'));
@@ -21111,12 +21227,12 @@ function sbStep(dt) {
     for (let j = 0; j < sbBeads.length; j++) {
       const b = sbBeads[j], dx = d.x - b.x, dy = d.y - b.y;
       if (dx * dx + dy * dy < (SB_R + 1.5) * (SB_R + 1.5)) {
-        b.stick -= 1; b.jig = 1; b.x = b.ox + sbRand(-1.2, 1.2); b.y = b.oy + sbRand(-1.2, 1.2); hit = true;
+        b.stick -= 1; b.jig = 1; sbSndHit(b.hard); b.x = b.ox + sbRand(-1.2, 1.2); b.y = b.oy + sbRand(-1.2, 1.2); hit = true;
         for (let s = 0; s < 2; s++) sbSplash.push({ x: d.x, y: d.y, vx: sbRand(-1.6, 1.6) - d.vx * 0.1, vy: sbRand(-2.4, -0.4), life: 1 });
         if (b.stick <= 0) {
           sbBeads.splice(j, 1);
           sbFalling.push({ x: b.x, y: b.y, vx: sbRand(-1.2, 1.2) + d.vx * 0.15, vy: sbRand(-3.2, -1.2), color: b.color, rot: 0 });
-          sbCleared++; sbStats.washed = (sbStats.washed || 0) + 1;
+          sbCleared++; sbStats.washed = (sbStats.washed || 0) + 1; sbSndFall();
         }
         break;
       }
@@ -21128,23 +21244,25 @@ function sbStep(dt) {
   sbBeads.forEach(b => { if (b.jig > 0) { b.jig -= 0.12 * k; if (b.jig <= 0) { b.x = b.ox; b.y = b.oy; } } });
   // end conditions
   if (sbState === 'play') {
-    if (sbMode === 'timed') { sbTimeLeft -= dt; if (sbTimeLeft <= 0) { sbTimeLeft = 0; sbFinishTimed(); return; } }
+    if (sbMode === 'timed') { sbTimeLeft -= dt; const tk = Math.ceil(sbTimeLeft); if (tk <= 10 && tk > 0 && tk !== SBS.lastTick) { SBS.lastTick = tk; sbSndDrip(); } if (sbTimeLeft <= 0) { sbTimeLeft = 0; sbFinishTimed(); return; } }
     if (!sbBeads.length) {
       if (sbMode === 'levels') sbWin();
       else { sbSetMsg(sbT('Board is clean — fresh beads!')); if (sbMode === 'timed') sbTimeLeft = Math.min(90, sbTimeLeft + 3); sbBeads = sbMakePattern(SB_SHAPES[Math.floor(Math.random() * SB_SHAPES.length)], 3); sbPeak = sbBeads.length; }
-    } else if (sbMode === 'levels' && sbWater <= 0 && !sbDrops.length) { sbState = 'lost'; sbSetMsg(sbT('Out of water — try again.')); sbSaveStats(); const nb = document.getElementById('sbNext'); if (nb) { nb.textContent = sbT('Retry'); nb.hidden = false; } }
+    } else if (sbMode === 'levels' && sbWater <= 0 && !sbDrops.length) { sbState = 'lost'; sbSndEnd(false); sbSetMsg(sbT('Out of water — try again.')); sbSaveStats(); const nb = document.getElementById('sbNext'); if (nb) { nb.textContent = sbT('Retry'); nb.hidden = false; } }
   }
 }
 function sbWin() {
-  sbState = 'won';
+  sbState = 'won'; sbSndWin();
   const left = sbWater / sbWaterCap, stars = left >= 0.4 ? 3 : left >= 0.2 ? 2 : 1;
+  const firstTime = sbLevel > (sbStats.best || 0), gemN = firstTime ? (stars === 3 ? 2 : 1) : 0;
   sbStats.levels = (sbStats.levels || 0) + 1; sbStats.best = Math.max(sbStats.best || 0, sbLevel); sbStats.next = Math.max(sbStats.next || 1, sbLevel + 1); sbSaveStats();
   sbSetMsg(sbT('Level complete!') + ' ' + '★'.repeat(stars) + '☆'.repeat(3 - stars));
   const nb = document.getElementById('sbNext'); if (nb) { nb.textContent = sbT('Next level'); nb.hidden = false; }
+  if (gemN > 0 && typeof gemsAdd === 'function') { try { gemsAdd(gemN, 'splashbeads'); if (typeof gemsToast === 'function') gemsToast('+' + gemN + ' 💎'); } catch (e) {} }
   if (typeof awardBadges === 'function') { try { awardBadges('splashbeads', sbStats.levels); } catch (e) {} }
 }
 function sbFinishTimed() {
-  sbState = 'done'; if (sbCleared > (sbStats.bestTimed || 0)) sbStats.bestTimed = sbCleared; sbSaveStats();
+  sbState = 'done'; sbSndEnd(true); if (sbCleared > (sbStats.bestTimed || 0)) sbStats.bestTimed = sbCleared; sbSaveStats();
   sbSetMsg(sbT('Time is up!') + ' ' + sbT('Cleared') + ': ' + sbCleared + ' · ' + sbT('Best') + ': ' + sbStats.bestTimed);
   const nb = document.getElementById('sbNext'); if (nb) { nb.textContent = sbT('Retry'); nb.hidden = false; }
 }
@@ -21181,11 +21299,290 @@ function sbUpdateHud() {
   if (tank) tank.style.width = Math.max(0, Math.min(100, sbWater / sbWaterCap * 100)) + '%';
 }
 function sbLoop(t) {
-  if (!document.getElementById('sbCanvas')) { sbRaf = 0; sbSpraying = false; return; }
+  if (!document.getElementById('sbCanvas')) { sbRaf = 0; sbSpraying = false; sbSprayLevel(false); try { if (SBS.ctx && SBS.ctx.state === 'running') SBS.ctx.suspend(); } catch (e) {} return; }
   const dt = sbLastT ? Math.min(0.05, (t - sbLastT) / 1000) : 0.016; sbLastT = t;
-  const po = document.getElementById('pauseOverlay'); if (!(po && po.classList && po.classList.contains('show'))) { sbStep(dt); }
+  const po = document.getElementById('pauseOverlay'), paused = !!(po && po.classList && po.classList.contains('show')); if (!paused) { sbStep(dt); }
+  sbSprayLevel(!paused && !document.hidden && sbSpraying && sbState === 'play' && !!sbAim && (sbMode !== 'levels' || sbWater > 0));
   sbDraw(); sbUpdateHud();
   sbRaf = requestAnimationFrame(sbLoop);
+}
+
+/* ---------------- DUNE DRIFT ---------------- */
+// Glide over soft dunes at sunset. Hold to dive (speed up the slopes), release to float. Collect stars to refill your breeze,
+// reach the lantern to finish the level. A level only fails if the breeze runs out, and you can continue once per level.
+const DD_W = 360, DD_H = 560, DD_RX = 110, DD_CRUISE = 3.0, DD_MINSP = 2.3, DD_MAXSP = 5.2;
+const DD_THEMES = [
+  { sky: [['#1d1442', '#6a2f6e', '#ffb06b'], ['#070a2a', '#2a2060', '#8a5aa0']], dunes: [['#d0587a', '#a23a68', '#6d2859', '#43204f'], ['#4a2a6a', '#35205a', '#241848', '#160f33']], sun: '#fff6d2', ridge: '#ffb98a' },
+  { sky: [['#2a6fa8', '#f2b36a', '#ffe3a8'], ['#2a1d55', '#c0527a', '#ffb27a']], dunes: [['#e0a050', '#c47a3c', '#8c5030', '#58301f'], ['#8a4a50', '#6a3450', '#46244a', '#2a1838']], sun: '#fffbe0', ridge: '#ffe2a0' },
+  { sky: [['#143a5c', '#3f7fa8', '#bfe6e0'], ['#0a1030', '#2a4a8a', '#8aa8d8']], dunes: [['#6aa8a0', '#4a8488', '#35606e', '#223f55'], ['#2a4a6a', '#223c5c', '#18304a', '#10223a']], sun: '#f4fff8', ridge: '#d8fff0' }
+];
+const DD_UP = [{ k: 'tank', name: 'Breeze tank', base: 12, max: 5 }, { k: 'speed', name: 'Board speed', base: 15, max: 5 }, { k: 'magnet', name: 'Star magnet', base: 10, max: 5 }];
+const DD_TX = {
+  fa: { 'Dune Drift':'رانش تپه‌ها', 'Glide over soft dunes at sunset, collect stars and reach the lantern.':'در غروب روی تپه‌های نرم بلغزید، ستاره جمع کنید و به فانوس برسید.', 'Level':'مرحله', 'Stars':'ستاره‌ها', 'Breeze':'نسیم', 'Reach the lantern':'به فانوس برسید', 'Level complete!':'مرحله تمام شد!', 'The wind has dropped.':'نسیم فروکش کرد.', 'Continue: watch a short ad':'ادامه: دیدن یک آگهی کوتاه', 'Continue (free)':'ادامهٔ رایگان', 'Retry':'دوباره', 'Next level':'مرحلهٔ بعد', 'Hold to dive · release to float':'نگه دارید تا پایین بروید · رها کنید تا شناور شوید', 'Breeze tank':'مخزن نسیم', 'Board speed':'سرعت تخته', 'Star magnet':'آهنربای ستاره', 'Upgrades':'ارتقاها', 'Max':'حداکثر', 'Music: Dune score':'موسیقی: آهنگ تپه‌ها', 'Music: Instruments':'موسیقی: سازها', 'Music: Piano & pads':'موسیقی: پیانو و پد', 'Music: Off':'موسیقی: خاموش', 'Sound: On':'صدا: روشن', 'Sound: Off':'صدا: خاموش', 'Wallet':'کیف ستاره', 'A calm, forgiving glide: nothing ends suddenly.':'یک لغزش آرام و بخشنده: هیچ‌چیز ناگهان تمام نمی‌شود.', 'Hold to dive down the slopes and pick up speed. Release to float up and over rocks.':'نگه دارید تا از شیب پایین بروید و سرعت بگیرید. رها کنید تا از روی سنگ‌ها بالا بروید.', 'Stars refill your breeze. Rocks drain it. If it runs out you can continue once per level.':'ستاره‌ها نسیم را پر می‌کنند و سنگ‌ها آن را کم می‌کنند. اگر تمام شد، در هر مرحله یک بار می‌توانید ادامه دهید.', 'Spend your stars on upgrades under the game.':'ستاره‌ها را برای ارتقا زیر بازی خرج کنید.', 'Dive on the downhill side of a dune for a speed boost.':'در سمت سرازیر تپه شیرجه بزنید تا سرعت بگیرید.', 'Release early to float over rocks.':'برای عبور از روی سنگ‌ها زود رها کنید.', 'Stars are worth chasing: they keep the breeze full.':'دنبال ستاره‌ها بروید: نسیم را پر نگه می‌دارند.', 'Not enough stars yet.':'هنوز ستارهٔ کافی ندارید.', 'Drag-free: hold anywhere on the picture.':'هرجای تصویر را نگه دارید.' },
+  azb: { 'Dune Drift':'تپه‌لرده سوزمک', 'Glide over soft dunes at sunset, collect stars and reach the lantern.':'گون باتاندا یومشاق تپه‌لرده سوز، اولدوز یغ و فانوسا چات.', 'Level':'مرحله', 'Stars':'اولدوزلار', 'Breeze':'یئل', 'Reach the lantern':'فانوسا چات', 'Level complete!':'مرحله باشا چاتدی!', 'The wind has dropped.':'یئل آلچالدی.', 'Continue: watch a short ad':'داوام: قیسا بیر ائلان ایزله', 'Continue (free)':'داوام (پولسوز)', 'Retry':'یئنه', 'Next level':'سونراکی مرحله', 'Hold to dive · release to float':'آشاغی گئتمک اۆچون ساخلا · سوزمک اۆچون بوراخ', 'Breeze tank':'یئل انباری', 'Board speed':'تخته سورعتی', 'Star magnet':'اولدوز مغناطیسی', 'Upgrades':'یاخشیلاشدیرمالار', 'Max':'ان چوخ', 'Music: Dune score':'موسیقی: تپه آهنگی', 'Music: Instruments':'موسیقی: سازلار', 'Music: Piano & pads':'موسیقی: پیانو و پد', 'Music: Off':'موسیقی: باغلی', 'Sound: On':'سس: آچیق', 'Sound: Off':'سس: باغلی', 'Wallet':'اولدوز کیسه‌سی', 'A calm, forgiving glide: nothing ends suddenly.':'راحات، باغیشلایان سوزمک: هئچ نه بیرداها قورتارمیر.', 'Hold to dive down the slopes and pick up speed. Release to float up and over rocks.':'ساخلا، دئیرمنلرده آشاغی گئت و سورعت آل. بوراخ، داشلارین اۆستوندن اوچ.', 'Stars refill your breeze. Rocks drain it. If it runs out you can continue once per level.':'اولدوزلار یئلی دولدورور، داشلار آزالدیر. قورتاراندا هر مرحله‌ده بیر دفعه داوام ائده بیلرسن.', 'Spend your stars on upgrades under the game.':'اولدوزلارینی اویونون آلتیندا یاخشیلاشدیرمالارا خرجله.', 'Dive on the downhill side of a dune for a speed boost.':'تپه‌نین ائنیش طرفینده آشاغی گئت، سورعتین آرتسین.', 'Release early to float over rocks.':'داشلارین اۆستوندن کئچمک اۆچون ارکن بوراخ.', 'Stars are worth chasing: they keep the breeze full.':'اولدوزلارین ایزینه دۆش: یئلی دولو ساخلاییرلار.', 'Not enough stars yet.':'هله کیفایت قدر اولدوز یوخدور.', 'Drag-free: hold anywhere on the picture.':'شکیلین هر یئرینده ساخلا.' }
+};
+function ddT(s) { const d = DD_TX[APP_LANG]; return (d && d[s]) || s; }
+let ddLevel = 1, ddState = 'idle', ddRaf = 0, ddCanvas = null, ddCtx = null, ddHold = false, ddLastT = 0, ddStats = null, ddMusic = 0, ddMusicKicked = false;
+let ddX = 0, ddY = 0, ddVy = 0, ddSpeed = DD_CRUISE, ddAir = true, ddBreeze = 100, ddBreezeMax = 100, ddGot = 0, ddItems = [], ddRocks = [], ddParts = [], ddLen = 9000, ddPh = [0, 0, 0], ddInv = 0, ddUsed = false, ddTime = 0, ddCombo = 0, ddComboT = 0, ddHint = 3, ddBirds = [], ddNight = [], ddCdTimer = 0;
+const DDS = { on: safeGet('dd-sound', true) !== false, wind: null, lastThud: 0 };
+function ddRng(seed) { let a = seed >>> 0; return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+function ddT_(x) { return 372 + 52 * Math.sin(x * 0.0042 + ddPh[0]) + 24 * Math.sin(x * 0.0097 + ddPh[1]) + 7 * Math.sin(x * 0.021 + ddPh[2]); }
+function ddSlope(x) { return (ddT_(x + 3) - ddT_(x - 3)) / 6; }
+function ddHex(a, b, t) { const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16); const m = (s) => Math.round(((pa >> s) & 255) + ((((pb >> s) & 255) - ((pa >> s) & 255)) * t)); return 'rgb(' + m(16) + ',' + m(8) + ',' + m(0) + ')'; }
+function ddMusicState() { if (!document.getElementById('ddCanvas')) return { e: 0.3, p: 0.3, c: 0 }; if (ddState !== 'play') return { e: 0.1, p: Math.max(0, Math.min(1, ddX / ddLen)), c: 0 }; return { e: Math.min(1, Math.max(0, (ddSpeed - DD_MINSP) / 3) * 0.75 + Math.min(ddCombo, 4) * 0.06), p: Math.max(0, Math.min(1, ddX / ddLen)), c: ddCombo }; }
+function ddAudio() { const was = SBS.on; SBS.on = true; const c = sbAudio(); SBS.on = was; return DDS.on ? c : null; }
+function ddWind(v) {
+  try {
+    const c = DDS.on && v > 0 ? ddAudio() : SBS.ctx; if (!c) return;
+    if (!DDS.wind) {
+      if (!(DDS.on && v > 0)) return;
+      const src = c.createBufferSource(); src.buffer = SBS.noise; src.loop = true;
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 520; lp.Q.value = 0.5;
+      const g = c.createGain(); g.gain.value = 0; src.connect(lp); lp.connect(g); g.connect(SBS.out); src.start(); DDS.wind = { g, lp };
+    }
+    const t = c.currentTime; DDS.wind.g.gain.setTargetAtTime(DDS.on ? v * 0.1 : 0, t, 0.25); DDS.wind.lp.frequency.setTargetAtTime(380 + v * 700, t, 0.25);
+  } catch (e) {}
+}
+function ddChime(n) { const c = ddAudio(); if (!c) return; try { const night = ddLen && ddX / ddLen > 0.55, sc = night ? [587.33, 698.46, 783.99, 880, 1046.5, 1174.66, 1396.9, 1568] : [587.33, 659.25, 739.99, 880, 987.77, 1174.66, 1318.5, 1479.98], f = sc[Math.min(n, sc.length - 1)], t = c.currentTime; sbBlip(c, t, f, f, 0.7, 0.14, 'triangle'); sbBlip(c, t, f * 2, f * 2, 0.4, 0.035); } catch (e) {} }
+function ddThud() { const c = ddAudio(); if (!c) return; const t = c.currentTime; if (t - DDS.lastThud < 0.2) return; DDS.lastThud = t; try { sbBlip(c, t, 150, 60, 0.18, 0.2); } catch (e) {} }
+function ddSetup() {
+  const th = DD_THEMES[(ddLevel - 1) % DD_THEMES.length], rnd = ddRng(ddLevel * 7919 + 13);
+  ddPh = [rnd() * 6.28, rnd() * 6.28, rnd() * 6.28]; ddLen = 11000 + 400 * Math.min(ddLevel, 15);
+  ddBreezeMax = 100 + ddStats.up.tank * 15; ddBreeze = ddBreezeMax; ddX = 0; ddSpeed = DD_CRUISE; ddAir = false; ddVy = 0; ddY = ddT_(0); ddGot = 0; ddInv = 1.5; ddUsed = false; ddTime = 0; ddCombo = 0; ddHint = 4;
+  ddItems = []; ddRocks = []; ddParts = [];
+  let x = 520; while (x < ddLen - 420) { const n = 3 + Math.floor(rnd() * 4), arc = rnd() < 0.65, h0 = 26 + rnd() * 62; for (let i = 0; i < n; i++) ddItems.push({ x: x + i * 46, h: arc ? h0 + Math.sin(i / Math.max(1, n - 1) * Math.PI) * 52 : h0, got: false }); x += n * 46 + 200 + rnd() * 240; }
+  if (ddLevel >= 2) { const sp = Math.max(520, 1500 - ddLevel * 55); let rx = 1000 + rnd() * 400; while (rx < ddLen - 500) { ddRocks.push({ x: rx, hit: false, s: 0.8 + rnd() * 0.5 }); rx += sp * (0.7 + rnd() * 0.7); } }
+  ddBirds = [0, 1, 2].map(i => ({ x: rnd() * DD_W, y: 70 + rnd() * 110, s: 0.15 + rnd() * 0.2 }));
+  ddNight = []; for (let i = 0; i < 34; i++) ddNight.push({ x: rnd() * DD_W, y: rnd() * 260, r: 0.6 + rnd() * 1.1 });
+  ddState = 'play'; ddHold = false;
+}
+function ddSave() { safeSet('dd-stats', ddStats); }
+function ddSaveProgress() { safeSet('dd-save', { level: ddLevel }); }
+function ddSetMsg(t) { const m = document.getElementById('ddMsg'); if (m) m.textContent = t; }
+function ddShopHtml() {
+  return '<div class="dd-shop-h"><b>' + adsEsc(ddT('Upgrades')) + '</b><span>⭐ ' + adsEsc(ddT('Wallet')) + ': ' + ddStats.wallet + '</span></div>' + DD_UP.map(u => {
+    const lv = ddStats.up[u.k] || 0, cost = u.base * (lv + 1), maxed = lv >= u.max;
+    return '<button type="button" class="btn ghost dd-up" data-up="' + u.k + '"' + (maxed ? ' disabled' : '') + '>' + adsEsc(ddT(u.name)) + ' · ' + lv + '/' + u.max + ' · ' + (maxed ? adsEsc(ddT('Max')) : '⭐ ' + cost) + '</button>';
+  }).join('');
+}
+function ddMusicLabel() { return ddT(['Music: Dune score', 'Music: Instruments', 'Music: Piano & pads', 'Music: Off'][ddMusic]); }
+function ddMusicApply() {
+  try {
+    if (ddMusic === 3) { if (MUS.playing) musStop(); return; }
+    const moods = ddMusic === 0 ? ['drift'] : ddMusic === 1 ? ['santur', 'harp', 'violin'] : ['keys', 'calm'], want = moods[(ddLevel - 1) % moods.length];
+    if (MUS.mood !== want) musSetMood(want);
+    if (!MUS.playing) musStart(); else if (MUS.ctx && MUS.ctx.state === 'suspended') MUS.ctx.resume();
+  } catch (e) {}
+}
+function renderDuneDrift(resume) {
+  if (ddRaf) { cancelAnimationFrame(ddRaf); ddRaf = 0; }
+  ddStats = Object.assign({ levels: 0, best: 0, next: 1, wallet: 0, stars: 0 }, safeGet('dd-stats', {}) || {});
+  ddStats.up = Object.assign({ tank: 0, speed: 0, magnet: 0 }, ddStats.up || {});
+  const sv = safeGet('dd-save', null);
+  ddLevel = (resume && sv && sv.level) ? Math.max(1, sv.level) : Math.max(1, Math.min(ddStats.next || 1, 999));
+  ddMusic = Number(safeGet('dd-music2', 0)) || 0; if (ddMusic < 0 || ddMusic > 3) ddMusic = 0; ddMusicKicked = false;
+  startTimer();
+  view.innerHTML = `
+    <h2 class="game-title">${adsEsc(ddT('Dune Drift'))}</h2>
+    <p class="game-sub">${adsEsc(ddT('Glide over soft dunes at sunset, collect stars and reach the lantern.'))}</p>
+    ${aboutBlock(`
+      <p>${adsEsc(ddT('A calm, forgiving glide: nothing ends suddenly.'))}</p>
+      <ul>
+        <li>${adsEsc(ddT('Hold to dive down the slopes and pick up speed. Release to float up and over rocks.'))}</li>
+        <li>${adsEsc(ddT('Stars refill your breeze. Rocks drain it. If it runs out you can continue once per level.'))}</li>
+        <li>${adsEsc(ddT('Spend your stars on upgrades under the game.'))}</li>
+      </ul>`)}
+    ${coachBlock([ddT('Dive on the downhill side of a dune for a speed boost.'), ddT('Release early to float over rocks.'), ddT('Stars are worth chasing: they keep the breeze full.')])}
+    <div class="sb-hud"><span id="ddInfo"></span></div>
+    <div class="dd-stage"><canvas id="ddCanvas" tabindex="0" role="img" aria-label="${adsEsc(ddT('Hold to dive · release to float'))}"></canvas></div>
+    <div class="lic-msg" id="ddMsg" role="status" aria-live="polite"></div>
+    <div class="btn-row sb-actions" style="justify-content:center;flex-wrap:wrap;">
+      <button class="btn ghost" id="ddMusicBtn" type="button">${adsEsc(ddMusicLabel())}</button>
+      <button class="btn ghost" id="ddSoundBtn" type="button">${adsEsc(ddT(DDS.on ? 'Sound: On' : 'Sound: Off'))}</button>
+      <button class="btn" id="ddCont" type="button" hidden></button>
+      <button class="btn" id="ddNext" type="button" hidden>${adsEsc(ddT('Next level'))}</button>
+    </div>
+    <div class="dd-shop" id="ddShop">${ddShopHtml()}</div>
+  `;
+  ddCanvas = document.getElementById('ddCanvas');
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  ddCanvas.width = DD_W * dpr; ddCanvas.height = DD_H * dpr; ddCtx = ddCanvas.getContext('2d'); ddCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  const kick = () => { const c = ddAudio(); if (c && c.state !== 'running') { try { c.resume(); } catch (e) {} } if (!ddMusicKicked) { ddMusicKicked = true; ddMusicApply(); } };
+  ddCanvas.addEventListener('pointerdown', (e) => { try { ddCanvas.setPointerCapture(e.pointerId); } catch (err) {} ddHold = true; e.preventDefault(); });
+  const rel = () => { ddHold = false; kick(); };
+  ddCanvas.addEventListener('pointerup', rel); ddCanvas.addEventListener('pointercancel', () => { ddHold = false; }); ddCanvas.addEventListener('touchend', kick, { passive: true });
+  ddCanvas.addEventListener('keydown', (e) => { if (e.key === ' ' || e.key === 'ArrowDown' || e.key === 'Enter') { ddHold = true; e.preventDefault(); } });
+  ddCanvas.addEventListener('keyup', (e) => { if (e.key === ' ' || e.key === 'ArrowDown' || e.key === 'Enter') { ddHold = false; kick(); } });
+  document.getElementById('ddMusicBtn').addEventListener('click', (e) => { ddMusic = (ddMusic + 1) % 4; safeSet('dd-music2', ddMusic); e.currentTarget.textContent = ddMusicLabel(); ddMusicKicked = true; ddMusicApply(); });
+  document.getElementById('ddSoundBtn').addEventListener('click', (e) => { DDS.on = !DDS.on; safeSet('dd-sound', DDS.on); e.currentTarget.textContent = ddT(DDS.on ? 'Sound: On' : 'Sound: Off'); if (!DDS.on) ddWind(0); else { ddAudio(); ddChime(2); } });
+  document.getElementById('ddShop').addEventListener('click', (e) => {
+    const b = e.target.closest('.dd-up'); if (!b) return; const u = DD_UP.find(x => x.k === b.dataset.up); if (!u) return;
+    const lv = ddStats.up[u.k] || 0, cost = u.base * (lv + 1); if (lv >= u.max) return;
+    if (ddStats.wallet < cost) { ddSetMsg(ddT('Not enough stars yet.')); return; }
+    ddStats.wallet -= cost; ddStats.up[u.k] = lv + 1; ddSave(); document.getElementById('ddShop').innerHTML = ddShopHtml(); ddChime(4);
+  });
+  document.getElementById('ddNext').addEventListener('click', () => { if (ddState === 'won') ddLevel++; ddSetup(); ddSetMsg(''); document.getElementById('ddNext').hidden = true; document.getElementById('ddCont').hidden = true; ddSaveProgress(); ddMusicApply(); });
+  document.getElementById('ddCont').addEventListener('click', ddContinue);
+  ddSetup(); ddSaveProgress(); ddSetMsg('');
+  ddLastT = 0; ddRaf = requestAnimationFrame(ddLoop);
+}
+function ddResume() {
+  ddBreeze = ddBreezeMax * 0.6; ddUsed = true; ddInv = 2.5; ddState = 'play'; ddHold = false; ddSetMsg('');
+  const cb = document.getElementById('ddCont'), nb = document.getElementById('ddNext'); if (cb) cb.hidden = true; if (nb) nb.hidden = true;
+}
+function ddContinue() {
+  const cb = document.getElementById('ddCont'); if (!cb || ddState !== 'stalled' || ddUsed) return;
+  if (typeof adsActive === 'function' && adsActive() && typeof adsHasRealAds === 'function' && adsHasRealAds() && typeof adsShow === 'function') {
+    cb.disabled = true; adsShow('interstitial', ok => { cb.disabled = false; if (ok) ddResume(); });
+    return;
+  }
+  // no sponsor yet: a free continue after a short, calm wait
+  let left = 5; cb.disabled = true; cb.textContent = ddT('Continue (free)') + ' ' + left + 's';
+  clearInterval(ddCdTimer);
+  ddCdTimer = setInterval(() => { left--; if (!document.getElementById('ddCont') || ddState !== 'stalled') { clearInterval(ddCdTimer); return; } if (left <= 0) { clearInterval(ddCdTimer); cb.disabled = false; ddResume(); } else cb.textContent = ddT('Continue (free)') + ' ' + left + 's'; }, 1000);
+}
+function ddPuff(x, y, n, col) { for (let i = 0; i < n; i++) ddParts.push({ x, y, vx: -1.2 - Math.random() * 1.6, vy: -Math.random() * 1.4, life: 1, col, r: 1.5 + Math.random() * 2 }); }
+function ddSpark(x, y) { for (let i = 0; i < 9; i++) { const a = Math.random() * 6.28, s = 0.8 + Math.random() * 2; ddParts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 1, col: '#fff0a0', r: 1.8, spark: true }); } }
+function ddStep(dt) {
+  const k = dt * 60; ddTime += dt; if (ddInv > 0) ddInv -= dt; if (ddHint > 0) ddHint -= dt;
+  const hold = ddHold, maxSp = DD_MAXSP + ddStats.up.speed * 0.25;
+  ddX += ddSpeed * k;
+  if (!ddAir) {
+    const s = ddSlope(ddX);
+    ddSpeed += s * 0.07 * k + (hold ? 0.02 : 0) * k; ddSpeed += (DD_CRUISE - ddSpeed) * 0.012 * k;
+    ddY = ddT_(ddX);
+    if (!hold) { ddAir = true; ddVy = Math.min(0, s * ddSpeed) - (1.6 + ddSpeed * 0.22); }
+    else if (Math.random() < 0.5 * k) ddPuff(DD_RX - 12, ddY, 1, 'rgba(255,230,200,.7)');
+  } else {
+    ddVy += (hold ? 0.5 : 0.06) * k; ddVy = Math.max(-5, Math.min(8, ddVy)); ddY += ddVy * k;
+    if (ddY < 80) { ddY = 80; if (ddVy < 0.4) ddVy = 0.4; }
+    const ty = ddT_(ddX);
+    if (ddY >= ty - 1) {
+      const s = ddSlope(ddX), perfect = hold && s > 0.05 && ddVy > 1.2;
+      ddAir = false; ddY = ty;
+      if (perfect) { ddSpeed += 0.6; ddBreeze = Math.min(ddBreezeMax, ddBreeze + 3); ddPuff(DD_RX, ddY, 8, 'rgba(255,240,210,.85)'); ddChime(1); }
+      else if (ddVy > 3) ddPuff(DD_RX, ddY, 4, 'rgba(255,230,200,.6)');
+      ddVy = 0;
+    }
+  }
+  ddSpeed = Math.max(DD_MINSP, Math.min(maxSp, ddSpeed));
+  ddBreeze -= (0.8 + Math.min(ddLevel, 20) * 0.03) * dt;
+  const mag = 20 + ddStats.up.magnet * 8, ry = ddY - 12;
+  if (ddComboT > 0) ddComboT -= dt; else ddCombo = 0;
+  for (const it of ddItems) {
+    if (it.got) continue; const ix = DD_RX + it.x - ddX; if (ix < -30 || ix > DD_W + 30) continue;
+    const iy = ddT_(it.x) - it.h;
+    if (Math.hypot(ix - DD_RX, iy - ry) < mag) {
+      it.got = true; ddGot++; ddStats.wallet++; ddStats.stars = (ddStats.stars || 0) + 1; ddBreeze = Math.min(ddBreezeMax, ddBreeze + 5);
+      ddChime(ddCombo); ddCombo++; ddComboT = 1.3; ddSpark(ix, iy); if (ddGot % 6 === 0) ddSave();
+    }
+  }
+  if (ddInv <= 0) for (const r of ddRocks) {
+    if (r.hit) continue; const rx = DD_RX + r.x - ddX; if (Math.abs(rx - DD_RX) < 15 && ddY > ddT_(r.x) - 15 * r.s) {
+      r.hit = true; ddBreeze -= 20; ddSpeed *= 0.65; ddInv = 1; ddThud(); ddPuff(DD_RX + 6, ddY - 4, 10, 'rgba(120,100,130,.8)');
+    }
+  }
+  for (let i = ddParts.length - 1; i >= 0; i--) { const p = ddParts[i]; p.x += (p.vx - (p.spark ? ddSpeed * 0.9 : ddSpeed * 0.9)) * k; p.y += p.vy * k; if (!p.spark) p.vy += 0.02 * k; p.life -= (p.spark ? 0.035 : 0.03) * k; if (p.life <= 0) ddParts.splice(i, 1); }
+  ddBirds.forEach(b => { b.x -= (b.s + ddSpeed * 0.05) * k; if (b.x < -20) b.x = DD_W + 20; });
+  if (ddX >= ddLen) { ddWin(); return; }
+  if (ddBreeze <= 0) { ddBreeze = 0; ddStall(); }
+}
+function ddStall() {
+  ddState = 'stalled'; ddHold = false; ddSave(); ddSetMsg(ddT('The wind has dropped.')); ddWind(0);
+  const cb = document.getElementById('ddCont'), nb = document.getElementById('ddNext');
+  if (cb) { cb.hidden = ddUsed; cb.disabled = false; cb.textContent = (typeof adsActive === 'function' && adsActive() && typeof adsHasRealAds === 'function' && adsHasRealAds()) ? ddT('Continue: watch a short ad') : ddT('Continue (free)'); }
+  if (nb) { nb.textContent = ddT('Retry'); nb.hidden = false; }
+  document.getElementById('ddShop').innerHTML = ddShopHtml();
+}
+function ddWin() {
+  ddState = 'won'; ddHold = false; ddWind(0);
+  const frac = ddItems.length ? ddGot / ddItems.length : 1, stars = frac >= 0.8 ? 3 : frac >= 0.5 ? 2 : 1;
+  const first = ddLevel > (ddStats.best || 0), gemN = first ? (stars === 3 ? 2 : 1) : 0;
+  ddStats.levels = (ddStats.levels || 0) + 1; ddStats.best = Math.max(ddStats.best || 0, ddLevel); ddStats.next = Math.max(ddStats.next || 1, ddLevel + 1);
+  const bonus = 5 + stars * 3; ddStats.wallet += bonus; ddSave();
+  ddSetMsg(ddT('Level complete!') + ' ' + '★'.repeat(stars) + '☆'.repeat(3 - stars) + '  +' + bonus + ' ⭐');
+  const nb = document.getElementById('ddNext'); if (nb) { nb.textContent = ddT('Next level'); nb.hidden = false; }
+  const cb = document.getElementById('ddCont'); if (cb) cb.hidden = true;
+  document.getElementById('ddShop').innerHTML = ddShopHtml();
+  const c = ddAudio(); if (c) { try { [523.25, 659.25, 783.99, 1046.5].forEach((f, i) => { const t = c.currentTime + i * 0.14; sbBlip(c, t, f, f, 0.7, 0.15, 'triangle'); sbBlip(c, t, f * 2, f * 2, 0.4, 0.035); }); } catch (e) {} }
+  if (gemN > 0 && typeof gemsAdd === 'function') { try { gemsAdd(gemN, 'dunedrift'); if (typeof gemsToast === 'function') gemsToast('+' + gemN + ' 💎'); } catch (e) {} }
+  if (typeof awardBadges === 'function') { try { awardBadges('dunedrift', ddStats.levels); } catch (e) {} }
+}
+function ddDraw() {
+  const c = ddCtx; if (!c) return;
+  const th = DD_THEMES[(ddLevel - 1) % DD_THEMES.length], p = Math.max(0, Math.min(1, ddX / ddLen));
+  const sk = [0, 1, 2].map(i => ddHex(th.sky[0][i], th.sky[1][i], p)), dn = [0, 1, 2, 3].map(i => ddHex(th.dunes[0][i], th.dunes[1][i], p));
+  const g = c.createLinearGradient(0, 0, 0, DD_H * 0.8); g.addColorStop(0, sk[0]); g.addColorStop(0.5, sk[1]); g.addColorStop(1, sk[2]); c.fillStyle = g; c.fillRect(0, 0, DD_W, DD_H);
+  const nightA = Math.max(0, (p - 0.35) / 0.65); c.fillStyle = '#fff';
+  ddNight.forEach(s => { c.globalAlpha = nightA * (0.5 + 0.5 * Math.sin(ddTime * 1.5 + s.x)); c.beginPath(); c.arc(s.x, s.y, s.r, 0, 7); c.fill(); }); c.globalAlpha = 1;
+  const sunY = 230 + p * 190, sg = c.createRadialGradient(250, sunY, 4, 250, sunY, 130); sg.addColorStop(0, 'rgba(255,240,200,.85)'); sg.addColorStop(1, 'rgba(255,200,140,0)');
+  c.fillStyle = sg; c.fillRect(100, sunY - 140, 300, 300); c.save(); c.globalCompositeOperation = 'lighter'; c.translate(250, sunY); for (let i = 0; i < 7; i++) { const a = -Math.PI / 2 + (i - 3) * 0.32 + Math.sin(ddTime * 0.2 + i) * 0.05, rg = c.createLinearGradient(0, 0, Math.cos(a) * 420, Math.sin(a) * 420); rg.addColorStop(0, 'rgba(255,225,170,.085)'); rg.addColorStop(1, 'rgba(255,225,170,0)'); c.fillStyle = rg; c.beginPath(); c.moveTo(0, 0); c.lineTo(Math.cos(a - 0.07) * 420, Math.sin(a - 0.07) * 420); c.lineTo(Math.cos(a + 0.07) * 420, Math.sin(a + 0.07) * 420); c.closePath(); c.fill(); } c.restore();
+  c.fillStyle = th.sun; c.beginPath(); c.arc(250, sunY, 38, 0, 7); c.fill();
+  if (nightA > 0) { c.globalAlpha = nightA; c.fillStyle = '#fffbe6'; c.beginPath(); c.arc(70, 95, 17, 0, 7); c.fill(); c.fillStyle = sk[0]; c.beginPath(); c.arc(78, 91, 15, 0, 7); c.fill(); c.globalAlpha = 1; }
+  c.strokeStyle = 'rgba(40,20,60,.6)'; c.lineWidth = 1.5; c.lineCap = 'round';
+  ddBirds.forEach(b => { const f = Math.sin(ddTime * 6 + b.x) * 2; c.beginPath(); c.moveTo(b.x - 7, b.y + f); c.quadraticCurveTo(b.x - 3.5, b.y - 4, b.x, b.y); c.quadraticCurveTo(b.x + 3.5, b.y - 4, b.x + 7, b.y + f); c.stroke(); });
+  const layer = (par, base, a1, k1, a2, k2, col, ridge, alpha) => {
+    c.globalAlpha = alpha; c.beginPath(); c.moveTo(0, DD_H);
+    for (let sx = 0; sx <= DD_W + 6; sx += 6) { const wx = ddX * par + sx; c.lineTo(sx, base + a1 * Math.sin(wx * k1 + ddPh[0]) + a2 * Math.sin(wx * k2 + ddPh[1])); }
+    c.lineTo(DD_W, DD_H); c.closePath(); c.fillStyle = col; c.fill(); if (ridge) { c.strokeStyle = ridge; c.globalAlpha = alpha * 0.5; c.lineWidth = 1.6; c.stroke(); } c.globalAlpha = 1;
+  };
+  layer(0.12, 300, 26, 0.006, 12, 0.015, dn[0], th.ridge, 0.7);
+  layer(0.3, 335, 34, 0.0048, 14, 0.012, dn[1], th.ridge, 0.9);
+  { const hz = c.createLinearGradient(0, 300, 0, 470); hz.addColorStop(0, 'rgba(255,255,255,0)'); hz.addColorStop(0.5, sk[2].replace('rgb', 'rgba').replace(')', ',.28)')); hz.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = hz; c.fillRect(0, 300, DD_W, 170); }
+  // lantern (goal)
+  const lx = DD_RX + ddLen - ddX;
+  if (lx < DD_W + 60) { const ly = ddT_(ddLen) - 80 + Math.sin(ddTime * 2) * 5, lg = c.createRadialGradient(lx, ly, 2, lx, ly, 60); lg.addColorStop(0, 'rgba(255,190,90,.8)'); lg.addColorStop(1, 'rgba(255,190,90,0)'); c.fillStyle = lg; c.fillRect(lx - 60, ly - 60, 120, 120);
+    c.fillStyle = '#ff9b3d'; c.beginPath(); c.moveTo(lx, ly - 20); c.bezierCurveTo(lx + 15, ly - 20, lx + 17, ly + 6, lx + 11, ly + 18); c.lineTo(lx - 11, ly + 18); c.bezierCurveTo(lx - 17, ly + 6, lx - 15, ly - 20, lx, ly - 20); c.fill(); c.fillStyle = '#fff0a8'; c.beginPath(); c.ellipse(lx, ly - 2, 6, 11, 0, 0, 7); c.fill(); c.fillStyle = '#7a3a1c'; c.fillRect(lx - 11, ly + 18, 22, 3); }
+  // near dune (the real terrain)
+  c.beginPath(); c.moveTo(0, DD_H); for (let sx = 0; sx <= DD_W + 6; sx += 5) c.lineTo(sx, ddT_(ddX - DD_RX + sx)); c.lineTo(DD_W, DD_H); c.closePath();
+  const tg = c.createLinearGradient(0, 300, 0, DD_H); tg.addColorStop(0, dn[2]); tg.addColorStop(1, dn[3]); c.fillStyle = tg; c.fill();
+  const ridgePath = () => { c.beginPath(); for (let sx = -6; sx <= DD_W + 6; sx += 5) { const yy = ddT_(ddX - DD_RX + sx); if (sx === -6) c.moveTo(sx, yy); else c.lineTo(sx, yy); } };
+  c.save(); c.beginPath(); c.moveTo(0, DD_H); for (let sx = 0; sx <= DD_W + 6; sx += 5) c.lineTo(sx, ddT_(ddX - DD_RX + sx)); c.lineTo(DD_W + 6, DD_H); c.closePath(); c.clip();
+  ridgePath(); c.strokeStyle = th.ridge; c.globalAlpha = 0.09; c.lineWidth = 46; c.stroke(); c.globalAlpha = 0.12; c.lineWidth = 16; c.stroke(); c.restore();
+  ridgePath(); c.strokeStyle = th.ridge; c.globalAlpha = 0.75; c.lineWidth = 2.2; c.stroke(); c.globalAlpha = 1;
+  c.strokeStyle = 'rgba(255,255,255,.08)'; c.lineWidth = 1.5; for (let wx = Math.floor((ddX - DD_RX) / 140) * 140; wx < ddX + DD_W; wx += 140) { const sx = DD_RX + wx - ddX, y = ddT_(wx) + 14 + (wx % 3) * 5; c.beginPath(); c.moveTo(sx, y); c.quadraticCurveTo(sx + 24, y - 5, sx + 50, y); c.stroke(); }
+  // rocks
+  ddRocks.forEach(r => { const sx = DD_RX + r.x - ddX; if (sx < -30 || sx > DD_W + 30) return; const y = ddT_(r.x), s = r.s; c.globalAlpha = r.hit ? 0.35 : 1;
+    c.fillStyle = '#6a5a78'; c.beginPath(); c.moveTo(sx - 14 * s, y + 3); c.quadraticCurveTo(sx - 12 * s, y - 14 * s, sx - 2 * s, y - 15 * s); c.quadraticCurveTo(sx + 12 * s, y - 14 * s, sx + 15 * s, y + 3); c.closePath(); c.fill();
+    c.fillStyle = 'rgba(255,255,255,.2)'; c.beginPath(); c.ellipse(sx - 3 * s, y - 9 * s, 5 * s, 3 * s, -0.4, 0, 7); c.fill(); c.globalAlpha = 1; });
+  // stars to collect
+  ddItems.forEach(it => { if (it.got) return; const sx = DD_RX + it.x - ddX; if (sx < -20 || sx > DD_W + 20) return; const y = ddT_(it.x) - it.h + Math.sin(ddTime * 3 + it.x) * 2.5;
+    const gg = c.createRadialGradient(sx, y, 1, sx, y, 17); gg.addColorStop(0, 'rgba(255,230,120,.7)'); gg.addColorStop(1, 'rgba(255,230,120,0)'); c.fillStyle = gg; c.fillRect(sx - 17, y - 17, 34, 34);
+    c.fillStyle = '#ffe27a'; c.strokeStyle = '#fff3b0'; c.lineWidth = 1; c.beginPath(); for (let i = 0; i < 10; i++) { const a = -Math.PI / 2 + i * Math.PI / 5, r = i % 2 ? 4.4 : 10; c.lineTo(sx + Math.cos(a) * r, y + Math.sin(a) * r); } c.closePath(); c.fill(); c.stroke(); c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 1; const tw = 4 + Math.sin(ddTime * 4 + it.x) * 2; c.beginPath(); c.moveTo(sx - 13 - tw, y); c.lineTo(sx + 13 + tw, y); c.moveTo(sx, y - 13 - tw); c.lineTo(sx, y + 13 + tw); c.stroke(); });
+  // rider
+  { const gy = ddT_(ddX), hgt = Math.max(0, gy - ddY), sh = Math.max(0.25, 1 - hgt / 160); c.fillStyle = 'rgba(20,8,36,' + (0.32 * sh) + ')'; c.beginPath(); c.ellipse(DD_RX, gy + 3, 26 * sh, 4 * sh, 0, 0, 7); c.fill();
+    c.save(); c.globalCompositeOperation = 'lighter'; const tg2 = c.createRadialGradient(DD_RX - 20, ddY - 8, 2, DD_RX - 20, ddY - 8, 46); tg2.addColorStop(0, 'rgba(255,170,150,.28)'); tg2.addColorStop(1, 'rgba(255,170,150,0)'); c.fillStyle = tg2; c.fillRect(DD_RX - 70, ddY - 56, 100, 100); c.restore(); }
+  const ang = ddAir ? Math.max(-0.5, Math.min(0.6, Math.atan2(ddVy, ddSpeed))) : Math.atan(ddSlope(ddX)) * 0.9;
+  c.save(); c.translate(DD_RX, ddY); c.rotate(ang); if (ddInv > 0 && Math.floor(ddInv * 10) % 2 === 0 && ddState === 'play' && ddTime > 2) c.globalAlpha = 0.55;
+  const w1 = Math.sin(ddTime * 9) * 5, w2 = Math.sin(ddTime * 9 + 1.2) * 6, tail = 28 + ddSpeed * 3;
+  c.lineCap = 'round'; c.strokeStyle = '#ff5f7e'; c.lineWidth = 5; c.beginPath(); c.moveTo(-3, -17); c.bezierCurveTo(-14, -17 + w1, -tail * 0.6, -14 + w2, -tail, -12 + w1); c.stroke();
+  c.strokeStyle = '#ff9db0'; c.lineWidth = 3; c.beginPath(); c.moveTo(-3, -14); c.bezierCurveTo(-12, -13 + w2, -tail * 0.5, -9 + w1, -tail * 0.85, -7 + w2); c.stroke();
+  c.fillStyle = '#2b1840'; c.beginPath(); c.ellipse(0, -2, 28, 4.6, 0, 0, 7); c.fill(); c.strokeStyle = '#2b1840'; c.lineWidth = 3.4; c.beginPath(); c.moveTo(-27, -3); c.quadraticCurveTo(-34, -4, -32, -11); c.stroke();
+  c.fillStyle = '#ffe0a0'; c.beginPath(); c.ellipse(0, -3.4, 25, 2.4, 0, 0, 7); c.fill();
+  c.fillStyle = '#3a2060'; c.beginPath(); c.moveTo(-6, -5); c.lineTo(-3, -20); c.lineTo(8, -20); c.lineTo(11, -5); c.closePath(); c.fill(); c.fillStyle = '#5a3a90'; c.fillRect(-3, -20, 11, 6);
+  c.fillStyle = '#ffd2a0'; c.beginPath(); c.arc(3, -27, 8, 0, 7); c.fill(); c.fillStyle = '#2b1840'; c.beginPath(); c.arc(2, -29, 8, Math.PI, 0); c.fill(); c.beginPath(); c.arc(6.5, -27, 1.1, 0, 7); c.fill();
+  c.restore();
+  // particles
+  ddParts.forEach(q => { c.globalAlpha = Math.max(0, q.life); c.fillStyle = q.col; c.beginPath(); c.arc(q.x, q.y, q.r, 0, 7); c.fill(); }); c.globalAlpha = 1;
+  // HUD bars
+  { const vg = c.createRadialGradient(DD_W / 2, DD_H * 0.55, DD_H * 0.35, DD_W / 2, DD_H * 0.55, DD_H * 0.8); vg.addColorStop(0, 'rgba(10,4,24,0)'); vg.addColorStop(1, 'rgba(10,4,24,.38)'); c.fillStyle = vg; c.fillRect(0, 0, DD_W, DD_H); }
+  const rr = (x, y, w, h, r) => { c.beginPath(); if (c.roundRect) c.roundRect(x, y, w, h, r); else c.rect(x, y, w, h); };
+  const glass = (x, y, w, h, r) => { rr(x, y, w, h, r); c.fillStyle = 'rgba(255,255,255,.13)'; c.fill(); c.strokeStyle = 'rgba(255,255,255,.28)'; c.lineWidth = 1; c.stroke(); };
+  const bar = (y, frac, c1, c2, w) => { glass(10, y - 4, w + 8, 16, 9); rr(14, y, w, 8, 4); c.fillStyle = 'rgba(0,0,0,.22)'; c.fill(); const bw = Math.max(8, w * Math.max(0, Math.min(1, frac))), bg = c.createLinearGradient(14, 0, 14 + w, 0); bg.addColorStop(0, c1); bg.addColorStop(1, c2); rr(14, y, bw, 8, 4); c.fillStyle = bg; c.fill(); };
+  bar(16, p, '#ffb347', '#ffe27a', 186); const bf = ddBreeze / ddBreezeMax; bar(40, bf, bf < 0.25 ? '#ff6a4a' : '#3fc9c0', bf < 0.25 ? '#ffb07a' : '#a8f0e6', 186);
+  glass(DD_W - 96, 12, 84, 30, 15); c.fillStyle = '#ffe27a'; c.font = '700 15px sans-serif'; c.textAlign = 'left'; c.fillText('★', DD_W - 84, 33); c.fillStyle = '#fff'; c.font = '600 14px sans-serif'; c.fillText(ddGot + '/' + ddItems.length, DD_W - 66, 32);
+  if (ddHint > 0 && ddState === 'play') { c.globalAlpha = Math.min(1, ddHint); c.fillStyle = '#fff'; c.font = '14px sans-serif'; c.textAlign = 'center'; c.fillText(ddT('Hold to dive · release to float'), DD_W / 2, DD_H - 24); c.textAlign = 'left'; c.globalAlpha = 1; }
+  if (ddState === 'stalled') { c.fillStyle = 'rgba(20,10,40,.35)'; c.fillRect(0, 0, DD_W, DD_H); }
+}
+function ddUpdateInfo() { const i = document.getElementById('ddInfo'); if (i) i.textContent = ddT('Level') + ' ' + ddLevel + ' · ' + ddT('Reach the lantern') + ' · ⭐ ' + ddStats.wallet; }
+function ddLoop(t) {
+  if (!document.getElementById('ddCanvas')) { ddRaf = 0; ddHold = false; ddWind(0); clearInterval(ddCdTimer); return; }
+  const dt = ddLastT ? Math.min(0.05, (t - ddLastT) / 1000) : 0.016; ddLastT = t;
+  const po = document.getElementById('pauseOverlay'), paused = !!(po && po.classList && po.classList.contains('show'));
+  if (!paused && ddState === 'play') ddStep(dt);
+  ddWind(!paused && !document.hidden && ddState === 'play' ? Math.min(1, (ddSpeed - DD_MINSP) / 3) * 0.9 + 0.1 : 0);
+  ddDraw(); ddUpdateInfo();
+  ddRaf = requestAnimationFrame(ddLoop);
 }
 
 /* ---------------- MAHJONG SOLITAIRE ---------------- */
@@ -22685,7 +23082,8 @@ const PROGRESS_SAVERS = {
   snakesladders: { has: () => { const v = (snlPos); return Array.isArray(v) ? v.length > 0 : !!v; }, get: () => ({ snlPos, snlTurn, snlOver, snlLastRoll }), set: (o) => { if ("snlPos" in o) snlPos = o.snlPos; if ("snlTurn" in o) snlTurn = o.snlTurn; if ("snlOver" in o) snlOver = o.snlOver; if ("snlLastRoll" in o) snlLastRoll = o.snlLastRoll; } },
   ludo: { has: () => { const v = (ludoTokens); return Array.isArray(v) ? v.length > 0 : !!v; }, get: () => ({ ludoTokens, ludoTurnIdx, ludoRollValue, ludoSixCount, ludoAwaiting, ludoOver, ludoMovableIdx, ludoFinishOrder, ludoMedals, ludoPendingCaptures }), set: (o) => { if ("ludoTokens" in o) ludoTokens = o.ludoTokens; if ("ludoTurnIdx" in o) ludoTurnIdx = o.ludoTurnIdx; if ("ludoRollValue" in o) ludoRollValue = o.ludoRollValue; if ("ludoSixCount" in o) ludoSixCount = o.ludoSixCount; if ("ludoAwaiting" in o) ludoAwaiting = o.ludoAwaiting; if ("ludoOver" in o) ludoOver = o.ludoOver; if ("ludoMovableIdx" in o) ludoMovableIdx = o.ludoMovableIdx; if ("ludoFinishOrder" in o) ludoFinishOrder = o.ludoFinishOrder; if ("ludoMedals" in o) ludoMedals = o.ludoMedals; if ("ludoPendingCaptures" in o) ludoPendingCaptures = o.ludoPendingCaptures; } },
   blockclear: { has: () => { const v = (bcGrid); return Array.isArray(v) ? v.length > 0 : !!v; }, get: () => ({ bcGrid, bcShapes, bcSelected, bcScore, bcBest, bcOver }), set: (o) => { if ("bcGrid" in o) bcGrid = o.bcGrid; if ("bcShapes" in o) bcShapes = o.bcShapes; if ("bcSelected" in o) bcSelected = o.bcSelected; if ("bcScore" in o) bcScore = o.bcScore; if ("bcBest" in o) bcBest = o.bcBest; if ("bcOver" in o) bcOver = o.bcOver; } },
-  splashbeads: { has: () => sbBeads.length > 0, get: () => ({ sbMode, sbLevel }), set: (o) => { if ('sbMode' in o) sbMode = o.sbMode; if ('sbLevel' in o) sbLevel = o.sbLevel; safeSet('sb-save', { mode: sbMode, level: sbLevel }); } },
+  dunedrift: { has: () => !!safeGet('dd-save', null), get: () => ({ ddLevel }), set: (o) => { if (o && o.ddLevel) { ddLevel = o.ddLevel; safeSet('dd-save', { level: ddLevel }); } } },
+  splashbeads: { has: () => sbBeads.length > 0 || !!safeGet('sb-save', null), get: () => ({ sbMode, sbLevel }), set: (o) => { if ('sbMode' in o) sbMode = o.sbMode; if ('sbLevel' in o) sbLevel = o.sbLevel; safeSet('sb-save', { mode: sbMode, level: sbLevel }); } },
   watersort: { has: () => { const v = (wsBottles); return Array.isArray(v) ? v.length > 0 : !!v; }, get: () => ({ wsBottles, wsSel, wsHist, wsMoves, wsLevel, wsWon, wsExtraUsed, wsHint, wsFlip }), set: (o) => { if ("wsBottles" in o) wsBottles = o.wsBottles; if ("wsSel" in o) wsSel = o.wsSel; if ("wsHist" in o) wsHist = o.wsHist; if ("wsMoves" in o) wsMoves = o.wsMoves; if ("wsLevel" in o) wsLevel = o.wsLevel;; if ("wsWon" in o) wsWon = o.wsWon; if ("wsExtraUsed" in o) wsExtraUsed = o.wsExtraUsed; if ("wsHint" in o) wsHint = o.wsHint; if ("wsFlip" in o) wsFlip = o.wsFlip; } },
   othello: { has: () => { const v = (othB); return Array.isArray(v) ? v.length > 0 : !!v; }, get: () => ({ othB, othTurn, othOver, othLast, othHist, othMode, othLevel, othShowMoves }), set: (o) => { if ("othB" in o) othB = o.othB; if ("othTurn" in o) othTurn = o.othTurn; if ("othOver" in o) othOver = o.othOver; if ("othLast" in o) othLast = o.othLast; if ("othHist" in o) othHist = o.othHist; if ("othMode" in o) othMode = o.othMode; if ("othLevel" in o) othLevel = o.othLevel; if ("othShowMoves" in o) othShowMoves = o.othShowMoves; } },
   mahjong: { has: () => { const v = (mjTiles); return Array.isArray(v) ? v.length > 0 : !!v; }, get: () => ({ mjTiles, mjSelected, mjMatchesFound, mjTotalPairs, mjOver, mjBest, mjHistory, mjHint, mjStuck, mjShuffles, mjLayoutId }), set: (o) => { if ("mjTiles" in o) mjTiles = o.mjTiles; if ("mjSelected" in o) mjSelected = o.mjSelected; if ("mjMatchesFound" in o) mjMatchesFound = o.mjMatchesFound; if ("mjTotalPairs" in o) mjTotalPairs = o.mjTotalPairs; if ("mjOver" in o) mjOver = o.mjOver; if ("mjBest" in o) mjBest = o.mjBest; if ("mjHistory" in o) mjHistory = o.mjHistory; if ("mjHint" in o) mjHint = o.mjHint; if ("mjStuck" in o) mjStuck = o.mjStuck; if ("mjShuffles" in o) mjShuffles = o.mjShuffles; if ("mjLayoutId" in o) mjLayoutId = o.mjLayoutId; } },
