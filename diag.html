@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Parlour connection test</title>
+<style>body{font:16px/1.5 system-ui,sans-serif;margin:16px;background:#101c14;color:#f1ecd8}h1{font-size:20px}pre{white-space:pre-wrap;word-break:break-all;background:#0b130e;border:1px solid #3a5a44;border-radius:8px;padding:12px;font-size:14px}button{font:inherit;padding:12px 18px;border-radius:8px;border:1px solid #d9b45a;background:#1d3a28;color:#f1ecd8}</style></head>
+<body><h1>Parlour connection test</h1>
+<p>Tap the button, wait about 30 seconds, then send a screenshot of the result.</p>
+<button id="go" type="button">Run test</button>
+<pre id="out">Not run yet.</pre>
+<script>
+const BASE = 'https://parlour-counter.nazaninzeynabafrazy.workers.dev';
+const out = document.getElementById('out'); let log = [];
+const say = (s) => { log.push(s); out.textContent = log.join('\n'); };
+async function t(name, url, opt) {
+  const t0 = Date.now(), ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 10000);
+  try {
+    const r = await fetch(url, Object.assign({ signal: ctl.signal }, opt || {}));
+    let body = ''; try { body = r.type === 'opaque' ? '(opaque: reached, body hidden)' : (await r.text()).slice(0, 60); } catch (e) {}
+    say('OK   ' + name + ' | type=' + r.type + ' status=' + r.status + ' | ' + (Date.now() - t0) + 'ms | ' + body);
+  } catch (e) { say('FAIL ' + name + ' | ' + (e.name || 'Error') + ': ' + (e.message || '') + ' | ' + (Date.now() - t0) + 'ms'); }
+  clearTimeout(timer);
+}
+document.getElementById('go').addEventListener('click', async () => {
+  log = []; say('page: ' + location.href); say('online: ' + navigator.onLine + ' | saveData: ' + (navigator.connection ? navigator.connection.saveData : 'n/a') + ' | sw: ' + (navigator.serviceWorker && navigator.serviceWorker.controller ? 'controlling' : 'none'));
+  say('ua: ' + navigator.userAgent.slice(0, 110)); say('');
+  await t('1 same-site file', 'diag.html?x=' + Date.now(), { cache: 'no-store' });
+  await t('2 /count (cors)', BASE + '/count?x=' + Date.now(), { mode: 'cors', cache: 'no-store' });
+  await t('3 /count (no-cors)', BASE + '/count?y=' + Date.now(), { mode: 'no-cors', cache: 'no-store' });
+  await t('4 /clan/list (cors)', BASE + '/clan/list?id=diag1', { mode: 'cors', cache: 'no-store' });
+  await t('5 /clan/me (cors)', BASE + '/clan/me?id=diag1&n=Test&a=1', { mode: 'cors', cache: 'no-store' });
+  await t('6 /ping POST (cors)', BASE + '/ping?id=diag1', { method: 'POST', mode: 'cors', cache: 'no-store' });
+  say(''); say('done');
+});
+</script></body></html>
