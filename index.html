@@ -7042,11 +7042,20 @@ function adsMultiplier() {
   return { mult: peak ? ADS.peakMultiplier : 1, users: null, live: false, peak };
 }
 function gemsReward() { return Math.max(1, Math.round(ADS.gemsPerAd * adsMultiplier().mult)); }
+// Service addresses to try: this website's own address first (it forwards to the counter, no cross-site problems), then the counter itself.
+function adsBases() {
+  const out = [];
+  try { if (location.protocol === 'https:' && /\.workers\.dev$/.test(location.hostname) && !/^parlour-counter\./.test(location.hostname)) out.push(location.origin); } catch (e) {}
+  if (/^https:\/\//i.test(ADS.countUrl)) out.push(ADS.countUrl.replace(/\/$/, ''));
+  return out;
+}
 async function adsPing() {
   if (!/^https:\/\//i.test(ADS.countUrl)) return;
   try {
-    const r = await fetch(ADS.countUrl.replace(/\/$/, '') + '/ping?id=' + encodeURIComponent(adsClientId()), { method: 'POST' });
-    const j = await r.json();
+    let j = null;
+    for (const b of adsBases()) {
+      try { const r = await fetch(b + '/ping?id=' + encodeURIComponent(adsClientId()), { method: 'POST' }); j = await r.json(); if (j && typeof j.users === 'number') break; } catch (e) {}
+    }
     if (j && typeof j.users === 'number') adsUsers = j.users;
   } catch (e) { adsUsers = null; }
   gemsRefreshBar();
@@ -7281,11 +7290,12 @@ let clanLastErr = '';
 function clanApi(path, params) {
   if (!/^https:\/\//i.test(ADS.countUrl)) { clanLastErr = 'no service address in this file'; return Promise.resolve(null); }
   const q = new URLSearchParams(Object.assign({ id: adsClientId() }, profileName() ? { n: profileName(), a: String(profileAv()) } : {}, params || {}));
-  const url = ADS.countUrl.replace(/\/$/, '') + '/clan/' + path + '?' + q;
-  // Patient on slow connections: up to 3 tries, each waits up to 12 seconds.
-  const once = () => { const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 12000);
-    return fetch(url, { signal: ctl.signal }).then(r => { clearTimeout(timer); return r.json().catch(() => { clanLastErr = 'bad reply (HTTP ' + r.status + ')'; return null; }); })
+  // Patient on slow connections: up to 3 tries, each waits up to 12 seconds; each try asks every service address in turn.
+  const bases = adsBases();
+  const one = (base) => { const ctl = new AbortController(), timer = setTimeout(() => ctl.abort(), 12000);
+    return fetch(base + '/clan/' + path + '?' + q, { signal: ctl.signal }).then(r => { clearTimeout(timer); return r.json().then(j => (j && typeof j === 'object') ? j : null).catch(() => { clanLastErr = 'bad reply (HTTP ' + r.status + ')'; return null; }); })
       .catch((e) => { clearTimeout(timer); clanLastErr = (e && e.name === 'AbortError' ? 'Timeout: no answer within 12 seconds (slow connection?)' : ((e && e.name) || 'Error') + ': ' + ((e && e.message) || 'failed')) + ' [' + (location.protocol || '?') + ']'; return null; }); };
+  const once = async () => { for (const b of bases) { const r = await one(b); if (r) return r; } return null; };
   return once().then(r => r || new Promise(res => setTimeout(res, 1200)).then(once)).then(r => r || new Promise(res => setTimeout(res, 2500)).then(once));
 }
 async function clanSync() {

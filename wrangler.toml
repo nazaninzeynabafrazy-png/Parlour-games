@@ -1,0 +1,12 @@
+name = "parlour-play"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+[assets]
+directory = "./"
+binding = "ASSETS"
+run_worker_first = ["/clan/*", "/ping", "/count", "/ref", "/refs", "/version"]
+
+[[services]]
+binding = "COUNTER"
+service = "parlour-counter"
