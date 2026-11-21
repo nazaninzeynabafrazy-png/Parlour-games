@@ -713,6 +713,9 @@
   .kp-digit:hover { background: var(--felt); }
   .kp-digit.active { background: var(--brass); border-color: var(--brass); color: var(--ink); }
   .kp-digit.complete { display: none; }
+  .kp-tally { text-align: center; font-size: 13px; opacity: .8; margin: 2px 0 6px; }
+  .kp-digit { position: relative; }
+  .kp-digit[data-left]::after { content: attr(data-left); position: absolute; top: 2px; right: 4px; font-family: var(--font-body, system-ui); font-size: 10px; font-weight: 700; line-height: 1; opacity: .75; }
 
   /* Shared "captured piece" fly-off effect (Chess, Checkers, Backgammon,
      Ludo) -- see spawnCaptureFlyEffect(). */
@@ -2755,8 +2758,8 @@ function musDrift(t, n) {
     let i = MUS.dm === undefined ? 4 : MUS.dm; i = Math.max(1, Math.min(pent.length - 1, i + [-2, -1, 0, 1, 2][Math.floor(Math.random() * 5)])); MUS.dm = i;
     if (e > 0.5 || night) musViolin(t, pent[i], 1.8, 0.7 + e * 0.4); else musHarp(t, pent[i] + 12, 0.9);
   }
-  if (e > 0.5) { if (s % 2 === 0) musNoise(t, 0.05, 6500, 0.025 + e * 0.02); if (s === 0 || s === 4) musThump(t, 0.1 + e * 0.1); }
-  if (e > 0.75 && (s === 3 || s === 7)) musNoise(t, 0.09, 1800, 0.05);
+  if (e > 0.5) { if (s % 2 === 0) musNoise(t, 0.05, 6500, 0.008 + e * 0.006); if (s === 0 || s === 4) musThump(t, 0.1 + e * 0.1); }
+  if (e > 0.75 && (s === 3 || s === 7)) musNoise(t, 0.09, 1800, 0.015);
 }
 function musSchedule() {
   const ctx = MUS.ctx; if (!ctx || !MUS.playing) return;
@@ -3978,6 +3981,8 @@ const FA = {
   "Read": "بخوانید",
   "Erase my saved data": "پاک کردن داده‌های ذخیره‌شدهٔ من",
   "Erase": "پاک کردن",
+  "Placed": "گذاشته‌شده",
+  "left": "مانده",
   "Stop": "توقف",
   "Easy": "آسان",
   "Medium": "متوسط",
@@ -5313,6 +5318,8 @@ const AZB = {
   'Read': 'اوخو',
   'Erase my saved data': 'ساخلانمیش معلوماتیمی سیل',
   'Erase': 'سیل',
+  'Placed': 'قویولموش',
+  'left': 'قالان',
   'Stop': 'دایان',
   'Easy': 'آسان',
   'Medium': 'اورتا',
@@ -8341,6 +8348,15 @@ function suSelectCell(r, c) {
 // is correctly filled in (given clues count as always-correct). Classic
 // Sudoku always needs exactly 9 of each digit, but this counts the solution
 // directly so the same logic works unchanged for Killer/Samurai variants.
+const kpCounts = {};
+// One line above the number pad: how many digits are placed (correctly) and how many are still to place.
+function kpTally(prefix) {
+  const pad = document.getElementById(prefix + 'DigitPad'), kc = kpCounts[prefix]; if (!pad || !kc) return;
+  let need = 0, have = 0; for (let n = 1; n <= 9; n++) { need += kc.need[n] || 0; have += kc.have[n] || 0; }
+  let el = document.getElementById(prefix + 'Tally');
+  if (!el) { el = document.createElement('div'); el.id = prefix + 'Tally'; el.className = 'kp-tally'; pad.parentNode.insertBefore(el, pad); }
+  el.textContent = tr('Placed') + ' ' + have + ' / ' + need + ' · ' + tr('left') + ' ' + (need - have);
+}
 function suCompleteDigits() {
   const complete = new Set();
   if (!suSolution || !suSolution.length) return complete;
@@ -8352,6 +8368,7 @@ function suCompleteDigits() {
     if (cur === sol) have[sol]++;
   }
   for (let n = 1; n <= 9; n++) if (need[n] > 0 && have[n] === need[n]) complete.add(n);
+  kpCounts['su'] = { need, have };
   return complete;
 }
 
@@ -8389,9 +8406,11 @@ function suHighlightSelected() {
   const pad = document.getElementById('suDigitPad');
   if (pad) {
     const complete = suCompleteDigits();
+    kpTally('su', pad);
     pad.querySelectorAll('.kp-digit').forEach((btn, i) => {
       const n = i + 1;
       const isComplete = complete.has(n);
+      const kc = kpCounts['su']; if (kc) { const left = kc.need[n] - kc.have[n]; btn.dataset.left = String(left); btn.title = kc.have[n] + ' / ' + kc.need[n] + ' placed · ' + left + ' left'; }
       btn.classList.toggle('complete', isComplete);
       btn.disabled = isComplete;
       btn.classList.toggle('active', !suSelected && suHighlightDigit === n && !isComplete);
@@ -11100,6 +11119,7 @@ function kmCompleteDigits() {
     if (kmEnteredGrid[r][c] === sol) have[sol]++;
   }
   for (let n = 1; n <= 9; n++) if (need[n] > 0 && have[n] === need[n]) complete.add(n);
+  kpCounts['km'] = { need, have };
   return complete;
 }
 
@@ -11135,9 +11155,11 @@ function kmHighlightSelected() {
   const pad = document.getElementById('kmDigitPad');
   if (pad) {
     const complete = kmCompleteDigits();
+    kpTally('km', pad);
     pad.querySelectorAll('.kp-digit').forEach((btn, i) => {
       const n = i + 1;
       const isComplete = complete.has(n);
+      const kc = kpCounts['km']; if (kc) { const left = kc.need[n] - kc.have[n]; btn.dataset.left = String(left); btn.title = kc.have[n] + ' / ' + kc.need[n] + ' placed · ' + left + ' left'; }
       btn.classList.toggle('complete', isComplete);
       btn.disabled = isComplete;
       btn.classList.toggle('active', !kmSelected && kmHighlightDigit === n && !isComplete);
@@ -15770,6 +15792,7 @@ function samCompleteDigits() {
     if (cur === sol) have[sol]++;
   }
   for (let n = 1; n <= 9; n++) if (need[n] > 0 && have[n] === need[n]) complete.add(n);
+  kpCounts['sam'] = { need, have };
   return complete;
 }
 
@@ -15806,9 +15829,11 @@ function samHighlightSelected() {
   const pad = document.getElementById('samDigitPad');
   if (pad) {
     const complete = samCompleteDigits();
+    kpTally('sam', pad);
     pad.querySelectorAll('.kp-digit').forEach((btn, i) => {
       const n = i + 1;
       const isComplete = complete.has(n);
+      const kc = kpCounts['sam']; if (kc) { const left = kc.need[n] - kc.have[n]; btn.dataset.left = String(left); btn.title = kc.have[n] + ' / ' + kc.need[n] + ' placed · ' + left + ' left'; }
       btn.classList.toggle('complete', isComplete);
       btn.disabled = isComplete;
       btn.classList.toggle('active', !samSelected && samHighlightDigit === n && !isComplete);
