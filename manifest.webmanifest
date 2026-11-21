@@ -1,6 +1,6 @@
 {
-  "name": "The Parlour — Game Table",
-  "short_name": "The Parlour",
+  "name": "Çayxana Oyunları — Game Table",
+  "short_name": "Çayxana Oyunları",
   "description": "Twenty-seven classic table games in one app.",
   "start_url": "./index.html",
   "scope": "./",
@@ -32,5 +32,28 @@
   "categories": [
     "games",
     "entertainment"
+  ],
+  "screenshots": [
+    {
+      "src": "screenshots/hub.png",
+      "sizes": "540x960",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "The game table"
+    },
+    {
+      "src": "screenshots/chess.png",
+      "sizes": "540x960",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Chess"
+    },
+    {
+      "src": "screenshots/backgammon.png",
+      "sizes": "540x960",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Backgammon"
+    }
   ]
 }
