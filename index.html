@@ -21081,13 +21081,22 @@ function sbSprayLevel(on) {
     const c = SBS.ctx; if (!c) return;
     if (!SBS.spray) {
       const src = c.createBufferSource(); src.buffer = SBS.noise; src.loop = true;
-      const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 2600; bp.Q.value = 0.7;
+      // Softer, darker "whoosh" (not bright static), gently pulsing like a water jet; bubbles are added by sbBubbles().
+      const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 650; hp.Q.value = 0.5;
+      const lp = c.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 2300; lp.Q.value = 0.4;
       const g = c.createGain(); g.gain.value = 0;
-      src.connect(bp); bp.connect(g); g.connect(SBS.out); src.start();
+      const lfo = c.createOscillator(), lg = c.createGain(); lfo.frequency.value = 7; lg.gain.value = 0.35; lfo.connect(lg);
+      const mod = c.createGain(); mod.gain.value = 0.7; lg.connect(mod.gain); src.connect(hp); hp.connect(lp); lp.connect(mod); mod.connect(g); g.connect(SBS.out); src.start(); lfo.start();
       SBS.spray = { src, g };
     }
-    const t = c.currentTime; SBS.spray.g.gain.cancelScheduledValues(t); SBS.spray.g.gain.setTargetAtTime(on ? 0.2 : 0, t, on ? 0.04 : 0.09);
+    const t = c.currentTime; SBS.spray.g.gain.cancelScheduledValues(t); SBS.spray.g.gain.setTargetAtTime(on ? 0.1 : 0, t, on ? 0.05 : 0.12);
   } catch (e) {}
+}
+// Small water bubbles / droplets while the jet is on.
+function sbBubbles() {
+  if (!SBS.sprayOn || !SBS.ctx) return; const c = SBS.ctx, t = c.currentTime;
+  if (t < (SBS.nextBub || 0)) return; SBS.nextBub = t + sbRand(0.05, 0.14);
+  try { const f = sbRand(420, 1250); sbBlip(c, t, f, f * sbRand(1.4, 2.1), sbRand(0.04, 0.09), sbRand(0.04, 0.09)); } catch (e) {}
 }
 function sbBlip(c, t, f0, f1, dur, vol, type) {
   const o = c.createOscillator(), g = c.createGain(); o.type = type || 'sine';
@@ -21318,6 +21327,7 @@ function sbLoop(t) {
   const dt = sbLastT ? Math.min(0.05, (t - sbLastT) / 1000) : 0.016; sbLastT = t;
   const po = document.getElementById('pauseOverlay'), paused = !!(po && po.classList && po.classList.contains('show')); if (!paused) { sbStep(dt); }
   sbSprayLevel(!paused && !document.hidden && sbSpraying && sbState === 'play' && !!sbAim && (sbMode !== 'levels' || sbWater > 0));
+  sbBubbles();
   sbDraw(); sbUpdateHud();
   sbRaf = requestAnimationFrame(sbLoop);
 }
