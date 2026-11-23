@@ -3825,6 +3825,11 @@ const FA = {
   "Los Alamos Chess": "شطرنج لوس آلاموس",
   "6×6 · small board, no bishops": "٦×٦ · صفحه کوچک، بدون فیل",
   "Almost Chess": "شطرنج تقریباً کامل (Almost Chess)",
+  "Chess960 (Fischer Random)": "شطرنج ٩٦٠ (فیشر تصادفی)",
+  "8×8 · shuffled back rank, 960 start positions": "٨×٨ · ردیف عقب درهم‌ریخته، ٩٦٠ چیدمان آغازین",
+  "Horde Chess": "شطرنج هورد (لشکر پیاده‌ها)",
+  "8×8 · 36 White pawns against a full Black army": "٨×٨ · ٣٦ پیاده سفید در برابر سپاه کامل سیاه",
+  "Eleven rule sets are available:": "یازده مجموعه قانون در دسترس است:",
   "8×8 · a Chancellor takes the queen's place": "٨×٨ · مهره «چنسلر» (Chancellor) جایگزین وزیر می‌شود",
   "8×8 · a Chancellor takes the queen’s place": "٨×٨ · مهره «چنسلر» (Chancellor) جایگزین وزیر می‌شود",
   "Glinski's Hexagonal Chess": "شطرنج شش‌ضلعی گلینسکی",
@@ -5397,6 +5402,11 @@ const AZB = {
   'Tamerlane Chess (Simplified)': 'تیمورلنگ شطرنجی (ساده)',
   'Double Chess': 'ایکی‌قات شطرنج',
   'Almost Chess': 'تقریباً شطرنج',
+  'Chess960 (Fischer Random)': '٩٦٠ شطرنجی (فیشر تصادفی)',
+  '8×8 · shuffled back rank, 960 start positions': '٨×٨ · آرخا صف قاریشدیریلیب، ٩٦٠ باشلانغیج یئرلشمه',
+  'Horde Chess': 'هورد شطرنجی (پیاده اوردوسو)',
+  '8×8 · 36 White pawns against a full Black army': '٨×٨ · ٣٦ آغ پیاده، قارانین تام اوردوسونا قارشی',
+  'Eleven rule sets are available:': '١١ قایدا توپلوسو وار:',
   'Your ad here': 'بورادا سیزین ائلانینیز',
   'This space shows advertising. Ads are what keep the games free.': 'بو یئر ائلان گؤستریر. ائلانلار اویونلارین پولسوز قالماسینی تأمین ائدیر.',
   'Continue': 'داوام ائت',
@@ -12994,6 +13004,10 @@ function chCheckmateText(winnerColor) {
 }
 const CHESS_VARIANTS = {
   standard: { label: 'Standard Chess', sub: '8\u00d78 \u00b7 classic FIDE rules' },
+  chess960: { label: 'Chess960 (Fischer Random)', sub: '8\u00d78 \u00b7 shuffled back rank, 960 start positions',
+    rules: '<p>Same pieces and rules as standard chess, but the pieces on each side\u2019s back row are shuffled at the start (the same for both sides): the bishops stand on opposite colours and the king stands between the two rooks. There are 960 possible starting positions, so you cannot rely on memorised openings.</p><p><b>Castling:</b> the king always lands on the c-file (queenside) or the g-file (kingside) and the rook next to it on the d- or f-file, whatever squares they started on. Every square between them must be empty, and the king may not start in, cross or land on an attacked square. To castle, tap your king and then the square where it will land; if the king is already on that square, tap your own rook instead.</p>' },
+  horde: { label: 'Horde Chess', sub: '8\u00d78 \u00b7 36 White pawns against a full Black army',
+    rules: '<p>White has no king and no pieces, only <b>36 pawns</b>. Black has the normal army. <b>You play the horde (White)</b> and win by checkmating the Black king. Black wins by capturing every White piece.</p><p>White pawns on the first rank may also advance two squares (like pawns on the second rank), and a pawn that reaches the far side promotes. Black can castle as usual; White cannot. If the side to move has no legal move the game is drawn.</p>' },
   tamerlaneFull: { label: 'Tamerlane Chess (Full)', sub: '11\u00d710 + 2 citadels (112 squares) \u00b7 full historical piece roster' },
   tamerlaneSimple: { label: 'Tamerlane Chess (Simplified)', sub: '11\u00d710 \u00b7 same roster, streamlined rules' },
   doubleChess: { label: 'Double Chess', sub: '16\u00d712 \u00b7 two kings a side, mate either one' },
@@ -13008,7 +13022,7 @@ const CHESS_VARIANTS = {
   almostChess: { label: 'Almost Chess', sub: '8\u00d78 \u00b7 a Chancellor takes the queen\'s place',
     rules: '<p>Ordinary 8\u00d78 chess, except each side\'s queen is replaced by a <b>Chancellor</b> (moves like a rook or a knight). Pawns promote to a Chancellor. Two-square pawn starts and en passant apply. No castling in this version.</p>' },
 };
-const CHESS_VARIANT_ORDER = ['standard', 'tamerlaneFull', 'tamerlaneSimple', 'doubleChess', 'capablanca', 'gothic', 'losAlamos', 'almostChess', 'glinski'];
+const CHESS_VARIANT_ORDER = ['standard', 'chess960', 'horde', 'tamerlaneFull', 'tamerlaneSimple', 'doubleChess', 'capablanca', 'gothic', 'losAlamos', 'almostChess', 'glinski'];
 
 /* ===== Graph chess engine (hex boards) — Glinski's Hexagonal Chess ===== */
 const GC_FILES = 'abcdefghikl';
@@ -13277,9 +13291,11 @@ function chRenderSetup() {
       "Use the Hint button during a game, then the post-game Review, to learn from your mistakes."
     ])}
     ${aboutBlock(`
-      <p>Nine rule sets are available:</p>
+      <p>Eleven rule sets are available:</p>
       <ul>
         <li><b>Standard</b> \u2014 classic 8\u00d78 chess: castling, en passant, and promotion to the piece of your choice.</li>
+        <li><b>Chess960 (Fischer Random)</b> \u2014 standard rules, but the back-rank pieces are shuffled into one of 960 start positions.</li>
+        <li><b>Horde Chess</b> \u2014 you command 36 pawns and no king against Black\u2019s full army; checkmate the king to win.</li>
         <li><b>Tamerlane Chess (Full)</b> \u2014 Timur's 15th-century "Great Chess" on an 11\u00d710 board, with ten distinct piece types (Ferz, Wazir, Giraffe, Scout, Elephant, Camel and Siege Engine, alongside King, Rook and Knight) and pawns that each promote to the piece from their own file. The board also has two extra squares sticking out of its sides \u2014 the citadels, 112 squares in all. Your king may step into the enemy citadel to claim a draw. Historical sources disagree on a few of the odder pieces (the Giraffe especially) \u2014 this uses one well-documented reading.</li>
         <li><b>Tamerlane Chess (Simplified)</b> \u2014 the same 11\u00d710 board and piece roster, with the Scout allowed to move like an ordinary bishop, every pawn promoting to a Rook, and no citadel draw.</li>
         <li><b>Double Chess</b> \u2014 a 1916 variant once played by Capablanca: one 16\u00d712 board, each side fielding two kings, two queens, four rooks, bishops and knights. Checkmating either king wins. Pawns may advance up to four squares on their first move, with en passant available on any square they cross.</li>
@@ -14440,6 +14456,8 @@ const VC_VARIANT_CFG = {
   gothic: { rows: 8, cols: 10, boardKind: 'setup', back: 'RNBQMKABNR', hasCitadels: false, citadelDraw: false, scoutMinDist: 2, promotion: 'queen', pawnFirstMoveMax: 2, kingsPerSide: 1 },
   losAlamos: { rows: 6, cols: 6, boardKind: 'setup', back: 'RNQKNR', hasCitadels: false, citadelDraw: false, scoutMinDist: 2, promotion: 'queen', pawnFirstMoveMax: 1, kingsPerSide: 1 },
   almostChess: { rows: 8, cols: 8, boardKind: 'setup', back: 'RNBMKBNR', hasCitadels: false, citadelDraw: false, scoutMinDist: 2, promotion: 'M', pawnFirstMoveMax: 2, kingsPerSide: 1 },
+  chess960: { rows: 8, cols: 8, boardKind: '960', hasCitadels: false, citadelDraw: false, scoutMinDist: 2, promotion: 'queen', pawnFirstMoveMax: 2, kingsPerSide: 1, castling: true },
+  horde: { rows: 8, cols: 8, boardKind: 'horde', back: 'RNBQKBNR', hasCitadels: false, citadelDraw: false, scoutMinDist: 2, promotion: 'queen', pawnFirstMoveMax: 2, kingsPerSide: 1, castling: true, horde: true },
   doubleChess: { rows: 12, cols: 16, boardKind: 'double', hasCitadels: false, citadelDraw: false, scoutMinDist: 2, promotion: 'queen', pawnFirstMoveMax: 4, kingsPerSide: 2 },
 };
 
@@ -14486,17 +14504,51 @@ function vcBuildSetupBoard(cfg) {
   return board;
 }
 
+// Chess960: a random legal back rank (bishops on opposite colours, king between the rooks).
+function vcRandom960() {
+  const row = Array(8).fill(null);
+  const free = () => row.map((v, i) => v ? -1 : i).filter(i => i >= 0);
+  const pick = arr => arr[Math.floor(Math.random() * arr.length)];
+  row[pick([0, 2, 4, 6])] = 'B';
+  row[pick([1, 3, 5, 7])] = 'B';
+  row[pick(free())] = 'Q';
+  row[pick(free())] = 'N';
+  row[pick(free())] = 'N';
+  const f = free();
+  row[f[0]] = 'R'; row[f[1]] = 'K'; row[f[2]] = 'R';
+  return row.join('');
+}
+
+function vcBuildHordeBoard() {
+  const board = Array.from({length: 8}, () => Array(8).fill(null));
+  const back = 'RNBQKBNR';
+  for (let c = 0; c < 8; c++) {
+    board[0][c] = {type: back[c], color: 'b'};
+    board[1][c] = {type: 'P', color: 'b'};
+    for (let r = 4; r <= 7; r++) board[r][c] = {type: 'P', color: 'w'};
+  }
+  [1, 2, 5, 6].forEach(c => { board[3][c] = {type: 'P', color: 'w'}; });
+  return board;
+}
+
 function vcBuildGame(variantId) {
   const cfg = VC_VARIANT_CFG[variantId];
   const boardKind = cfg.boardKind;
-  const board = boardKind === 'tamerlane' ? vcBuildTamerlaneBoard() : (boardKind === 'setup' ? vcBuildSetupBoard(cfg) : vcBuildDoubleBoard());
+  let back960 = null;
+  if (boardKind === '960') back960 = vcRandom960();
+  const board = boardKind === 'tamerlane' ? vcBuildTamerlaneBoard()
+    : (boardKind === 'setup' ? vcBuildSetupBoard(cfg)
+    : (boardKind === '960' ? vcBuildSetupBoard({rows: 8, cols: 8, back: back960})
+    : (boardKind === 'horde' ? vcBuildHordeBoard() : vcBuildDoubleBoard())));
+  const back = back960 || (boardKind === 'horde' ? 'RNBQKBNR' : null);
+  const cast = back ? {kc: back.indexOf('K'), rQ: back.indexOf('R'), rK: back.lastIndexOf('R'), back} : null;
   // Full Tamerlane has two extra squares that stick out of the board: Black's citadel on the left edge beside rank 9,
   // White's citadel on the right edge beside rank 2. A king may only enter the ENEMY citadel (to claim a draw).
   const citadels = (boardKind === 'tamerlane' && cfg.citadelDraw) ? {w: [1, -1], b: [8, cfg.cols]} : null;
   return {
     variant: variantId, cfg, rows: cfg.rows, cols: cfg.cols, board,
     turn: 'w', over: false, enPassant: null,
-    citadels, citadelDrawTriggered: false,
+    citadels, citadelDrawTriggered: false, cast,
   };
 }
 
@@ -14510,11 +14562,15 @@ function vcPieceMoves(game, r, c) {
   const out = [];
   if (piece.type === 'P') {
     const dir = piece.color === 'w' ? -1 : 1;
-    const maxStep = !piece.moved ? (game.cfg.pawnFirstMoveMax || 1) : 1;
+    let maxStep = !piece.moved ? (game.cfg.pawnFirstMoveMax || 1) : 1;
+    // Horde: only pawns still on their first or second rank may double-step.
+    if (game.cfg.horde && piece.color === 'w' && r < game.rows - 2) maxStep = 1;
     for (let s = 1; s <= maxStep; s++) {
       const nr = r + dir * s, nc = c;
       if (!vcInBounds(game, nr, nc) || board[nr][nc]) break;
-      out.push({from: [r, c], to: [nr, nc], passedSquares: s > 1 ? Array.from({length: s - 1}, (_, i) => [r + dir * (i + 1), c]) : []});
+      // Horde: a double step from the very first rank leaves no en passant chance.
+      const noEp = game.cfg.horde && piece.color === 'w' && r === game.rows - 1;
+      out.push({from: [r, c], to: [nr, nc], passedSquares: (s > 1 && !noEp) ? Array.from({length: s - 1}, (_, i) => [r + dir * (i + 1), c]) : []});
     }
     [[dir, 1], [dir, -1]].forEach(([dr, dc]) => {
       const nr = r + dr, nc = c + dc;
@@ -14576,6 +14632,36 @@ function vcCastleMoves(game, color) {
   return out;
 }
 
+// Castling for standard-sized boards, written the Chess960 way so it also covers the normal start position:
+// the king ends on the c- or g-file, the rook on the d- or f-file.
+function vcCastle960(game, color) {
+  const out = [];
+  const cast = game.cast;
+  if (!cast) return out;
+  const row = color === 'w' ? game.rows - 1 : 0;
+  const opp = color === 'w' ? 'b' : 'w';
+  const king = game.board[row][cast.kc];
+  if (!king || king.type !== 'K' || king.color !== color || king.moved) return out;
+  if (vcAttacksSquare(game, row, cast.kc, opp)) return out;
+  [['Q', cast.rQ, 2, 3], ['K', cast.rK, 6, 5]].forEach(([side, rc, kTo, rTo]) => {
+    const rook = game.board[row][rc];
+    if (!rook || rook.type !== 'R' || rook.color !== color || rook.moved) return;
+    const lo = Math.min(cast.kc, kTo, rc, rTo), hi = Math.max(cast.kc, kTo, rc, rTo);
+    for (let c = lo; c <= hi; c++) {
+      const p = game.board[row][c];
+      if (p && c !== cast.kc && c !== rc) return;
+    }
+    // king path: every square from the king's start to its destination must be safe (checked with king and rook lifted)
+    const lifted = vcCloneGame(game);
+    lifted.board[row][cast.kc] = null; lifted.board[row][rc] = null;
+    const step = kTo >= cast.kc ? 1 : -1;
+    for (let c = cast.kc; c !== kTo + step; c += step) if (vcAttacksSquare(lifted, row, c, opp)) return;
+    out.push({from: [row, cast.kc], to: kTo === cast.kc ? [row, rc] : [row, kTo], kingTo: [row, kTo],
+              castleRook: {from: [row, rc], to: [row, rTo]}, castleSide: side});
+  });
+  return out;
+}
+
 function vcAttacksSquare(game, r, c, byColor) {
   for (let rr = 0; rr < game.rows; rr++) {
     for (let cc = 0; cc < game.cols; cc++) {
@@ -14604,6 +14690,17 @@ function vcKingsAttacked(game, color) {
 }
 
 function vcApplyMove(game, move) {
+  if (move.kingTo) {   // Chess960-style castling: lift both pieces, then set them down
+    const [row, kc] = move.from, rc = move.castleRook.from[1];
+    const king = game.board[row][kc], rook = game.board[row][rc];
+    game.board[row][kc] = null; game.board[row][rc] = null;
+    game.board[move.kingTo[0]][move.kingTo[1]] = king;
+    game.board[move.castleRook.to[0]][move.castleRook.to[1]] = rook;
+    king.moved = true; rook.moved = true;
+    game.enPassant = null;
+    game.turn = king.color === 'w' ? 'b' : 'w';
+    return {captured: null};
+  }
   const [fr, fc] = move.from, [tr, tc] = move.to;
   const piece = game.board[fr][fc];
   const capturedPiece = game.board[tr][tc];
@@ -14667,6 +14764,7 @@ function vcLegalMoves(game, color) {
     }
   }
   if (game.cfg.kingsPerSide === 2) pseudo.push(...vcCastleMoves(game, color));
+  if (game.cfg.castling) pseudo.push(...vcCastle960(game, color));
   return pseudo.filter(m => {
     const clone = vcCloneGame(game);
     vcApplyMove(clone, m);
@@ -14723,7 +14821,7 @@ function vcRenderBoard() {
   vcStats = safeGet('vc-stats-' + game.variant, {wins: 0, losses: 0, draws: 0});
   view.innerHTML = `
     <h2 class="game-title">Chess \u2014 ${CHESS_VARIANTS[game.variant].label}</h2>
-    <p class="game-sub">You play White.</p>
+    <p class="game-sub">${game.cfg.horde ? "You play the horde (White) \u2014 checkmate the Black king." : "You play White."}${game.cast && game.cfg.boardKind === '960' ? " Start position: " + game.cast.back + "." : ""}</p>
     ${aboutBlock(vcRulesHtml(game.variant))}
     <div class="ck-wrap">
       <div class="ch-board vc-board" id="vcBoard" style="grid-template-columns:repeat(${game.cols + (game.citadels ? 2 : 0)},1fr); grid-template-rows:repeat(${game.rows},1fr);"></div>
@@ -14863,8 +14961,8 @@ function vcShowHint() {
   vcHintMove = move;
   const piece = game.board[move.from[0]][move.from[1]];
   const def = VC_PIECES[piece.type];
-  const capturedPiece = game.board[move.to[0]][move.to[1]] ||
-    (move.enPassantCapture ? game.board[move.enPassantCapture[0]][move.enPassantCapture[1]] : null);
+  const capturedPiece = move.kingTo ? null : (game.board[move.to[0]][move.to[1]] ||
+    (move.enPassantCapture ? game.board[move.enPassantCapture[0]][move.enPassantCapture[1]] : null));
   const fromSq = vcSquareName(game, move.from[0], move.from[1]);
   const toSq = vcSquareName(game, move.to[0], move.to[1]);
   const body = capturedPiece
@@ -14920,8 +15018,8 @@ function vcRenderGameReview() {
 function vcExecute(move) {
   const game = vcGame;
   if (move.citadel) { game.citadelDrawTriggered = true; game.citadelKing = 'w'; cclkMoveMade('w'); vcHintMove = null; vcAutosave(); vcDrawBoard(); vcCheckGameOver(); return; }
-  const capturedPiece = game.board[move.to[0]][move.to[1]] ||
-    (move.enPassantCapture ? game.board[move.enPassantCapture[0]][move.enPassantCapture[1]] : null);
+  const capturedPiece = move.kingTo ? null : (game.board[move.to[0]][move.to[1]] ||
+    (move.enPassantCapture ? game.board[move.enPassantCapture[0]][move.enPassantCapture[1]] : null));
   const capturedSquare = move.enPassantCapture || (capturedPiece ? move.to : null);
   const analysisEntry = vcAnalyzePlayerMove(game, move);
   vcHintMove = null;
@@ -14983,8 +15081,8 @@ function vcAiTurn() {
   }
   const piece = game.board[chosen.from[0]][chosen.from[1]];
   const originalType = piece.type;
-  const capturedPiece = game.board[chosen.to[0]][chosen.to[1]] ||
-    (chosen.enPassantCapture ? game.board[chosen.enPassantCapture[0]][chosen.enPassantCapture[1]] : null);
+  const capturedPiece = chosen.kingTo ? null : (game.board[chosen.to[0]][chosen.to[1]] ||
+    (chosen.enPassantCapture ? game.board[chosen.enPassantCapture[0]][chosen.enPassantCapture[1]] : null));
   const capturedSquare = chosen.enPassantCapture || (capturedPiece ? chosen.to : null);
   vcApplyMove(game, chosen);
   cclkMoveMade('b');
@@ -15019,7 +15117,10 @@ function vcCheckGameOver() {
     game.over = true;
     pauseTimer();
     cclkStop();
-    if (inCheck) {
+    const hordeWiped = game.cfg.horde && nextColor === 'w' && !game.board.some(row => row.some(p => p && p.color === 'w'));
+    if (hordeWiped) {
+      vcStats.losses++; vcUpdateStatus('All your pieces were captured \u2014 black wins.');
+    } else if (inCheck) {
       const winner = nextColor === 'w' ? 'b' : 'w';
       if (winner === 'w') { vcStats.wins++; vcUpdateStatus('Checkmate \u2014 you win!'); }
       else { vcStats.losses++; vcUpdateStatus('Checkmate \u2014 black wins.'); }
