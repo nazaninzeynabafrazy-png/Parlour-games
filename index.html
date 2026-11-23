@@ -1332,6 +1332,9 @@
   /* Variant boards: round, high-contrast discs so letters stay readable on both square colours */
   .ch-piece.vc-piece { display: flex; align-items: center; justify-content: center; width: 80%; max-width: 30px; aspect-ratio: 1; margin: auto; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,.55); }
   .ch-piece.vc-piece.white { background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--player-piece, #FFFFFF) 45%, #fff), var(--player-piece, #F1E9D2)); color: var(--player-piece-text, #151515); border: 1.5px solid var(--player-halo, #6b5a2e); text-shadow: 0 0 2px rgba(255,255,255,.75); }
+  .vc-board .ch-square.fog { filter: brightness(.42) saturate(.6); }
+  .vc-board .ch-square.hill { box-shadow: inset 0 0 0 2px rgba(230,190,60,.85); }
+  .ch-piece.vc-piece.duck { background: none; box-shadow: none; font-size: clamp(16px, 3vw, 26px); }
   .ch-piece.vc-piece.black { background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--opp-piece, #5a5a63) 62%, #fff), var(--opp-piece, #1b1a1d)); color: var(--opp-piece-text, #fff); border: 1.5px solid var(--opp-halo, #c9a24b); text-shadow: 0 0 2px rgba(0,0,0,.8); }
   .ch-tint .ch-piece.vc-piece.white, .ch-tint .ch-piece.vc-piece.black { filter: none; }
   .ch-piece.white { color: var(--player-piece, #F1E9D2); text-shadow: 0 0 1.5px var(--player-halo, #000), 0 0 1px var(--player-halo, #000); }
@@ -1923,6 +1926,10 @@
   .ludo-token.blue { background: var(--lc-blue, #3A6FA8); }
   .ludo-token-count { position: absolute; bottom: 0; right: 1px; font-size: 8px; color: var(--ink); font-weight: 700; background: var(--cream); border-radius: 50%; width: 11px; height: 11px; display: flex; align-items: center; justify-content: center; }
   .ludo-side { flex: 1; min-width: 200px; }
+  .l6-wrap { flex: 1 1 340px; width: 100%; max-width: 560px; position: relative; }
+  .l6-svg { width: 100%; height: auto; display: block; touch-action: manipulation; }
+  .l6-sel circle:last-child { animation: l6pulse 1s ease-in-out infinite alternate; }
+  @keyframes l6pulse { from { opacity: .65; } to { opacity: 1; } }
   .ludo-status { font-family: var(--font-display); font-size: 16px; min-height: 24px; margin-bottom: 10px; }
   .ludo-die { margin-bottom: 14px; }
   .ludo-colors { max-width: 100%; }
@@ -2253,7 +2260,7 @@
   <div class="topbar">
     <h1 id="homeLink">Çayxana Oyunları</h1>
     <div style="display:flex; flex-direction:column; align-items:flex-end; gap:10px;">
-      <div class="tagline">A table of twenty-seven games, all dealt out and ready to play.</div>
+      <div class="tagline">A table of twenty-eight games, all dealt out and ready to play.</div>
     </div>
   </div>
   <div class="game-bar">
@@ -2382,6 +2389,7 @@ const GAMES = [
   {id:'snakesladders', name:'Snakes and Ladders', status:'Fully playable', notes:'Roll dice, climb ladders, dodge snakes, race to 100', playable:true, category:'dice'},
   {id:'backgammon', name:'Backgammon', status:'Playable + AI', notes:'Dice, bar, bearing off, doubling cube, gammons, resign, pip count, simple AI', playable:true, category:'dice'},
   {id:'ludo', name:'Ludo', status:'Fully playable', notes:'Classic 4-player race \u2014 roll, move, capture, get all 4 tokens home', playable:true, category:'dice'},
+  {id:'ludo6', name:'Ludo \u2014 6 Players', status:'Fully playable', notes:'Six-sided board for six players \u2014 roll, move, capture, be one of the first three to get all 4 tokens home', playable:true, category:'dice'},
   {id:'billiards', name:'Billiards', status:'Playable + AI', notes:'8-ball pool vs the computer \u2014 drag back to aim and set power, claim solids or stripes, clear your group, then sink the 8', playable:true, category:'recreational'},
   {id:'jigsaw', name:'Jigsaw', status:'Fully playable', notes:'Square tiles or curved interlocking pieces, 3\u00d73 up to 20\u00d720, 23 pictures to unlock', playable:true, category:'recreational'},
   {id:'cards4', name:'4-Player Cards', status:'Playable', notes:'Trick-taking, follow suit, first to 5 tricks', playable:true, category:'cards'},
@@ -2451,6 +2459,7 @@ const GAME_ACCENTS = {
   snakesladders:  '#4CAE7A',
   backgammon:     '#C9A14A',
   ludo:           '#5A7FB0',
+  ludo6:          '#7A6FC0',
   jigsaw:         '#9B6BC9',
   cards4:         '#4CAE7A',
   courtpiece:     '#C9A14A',
@@ -3544,6 +3553,7 @@ const WIN_STATS_SOURCES = [
   { key: 'bg-stats',      field: 'wins' },
   { key: 'snl-stats',     field: 'wins' },
   { key: 'ludo-stats',    field: 'wins' },
+  { key: 'ludo6-stats',   field: 'wins' },
   { key: 'munch-stats',   field: 'wins' },
   { key: 'dt-stats',      field: 'wins' },
   { key: 'sn-stats',      field: 'wins' },
@@ -3755,7 +3765,7 @@ let APP_LANG = (function () { const l = safeGet('app-lang', 'en'); return (l ===
 function isRtlLang() { return APP_LANG === 'fa' || APP_LANG === 'azb'; }
 const FA = {
   // hub
-  'A table of twenty-seven games, all dealt out and ready to play.': 'میزی با بیست‌وهفت بازی، چیده و آمادهٔ بازی.',
+  'A table of twenty-eight games, all dealt out and ready to play.': 'میزی با بیست‌وهشت بازی، چیده و آمادهٔ بازی.',
   'Search games...': 'جستجوی بازی‌ها...',
   'Your scores live only in this browser, on this device.': 'امتیازهای شما فقط در همین مرورگر و روی همین دستگاه ذخیره می‌شوند.',
   '← Back to the table': '→ بازگشت به میز',
@@ -3828,6 +3838,14 @@ const FA = {
   "Chess960 (Fischer Random)": "شطرنج ٩٦٠ (فیشر تصادفی)",
   "8×8 · shuffled back rank, 960 start positions": "٨×٨ · ردیف عقب درهم‌ریخته، ٩٦٠ چیدمان آغازین",
   "Horde Chess": "شطرنج هورد (لشکر پیاده‌ها)",
+  "King of the Hill": "شطرنج پادشاه تپه",
+  "Fog of War Chess": "شطرنج مه جنگ",
+  "Duck Chess": "شطرنج اردک",
+  "4-Player Team Chess": "شطرنج تیمی چهار نفره",
+  "16×8 · four armies, two teams of two": "١٦×٨ · چهار سپاه، دو تیم دونفره",
+  "8×8 · march your king to the centre to win": "٨×٨ · شاه را به مرکز ببرید و برنده شوید",
+  "8×8 · you only see what your pieces can reach": "٨×٨ · فقط خانه‌هایی را می‌بینید که مهره‌هایتان به آن می‌رسند",
+  "8×8 · a blocking duck moves after every move": "٨×٨ · پس از هر حرکت، اردکِ مسدودکننده جابه‌جا می‌شود",
   "8×8 · 36 White pawns against a full Black army": "٨×٨ · ٣٦ پیاده سفید در برابر سپاه کامل سیاه",
   "Eleven rule sets are available:": "یازده مجموعه قانون در دسترس است:",
   "8×8 · a Chancellor takes the queen's place": "٨×٨ · مهره «چنسلر» (Chancellor) جایگزین وزیر می‌شود",
@@ -5056,7 +5074,7 @@ const FA = {
   'Table color': 'رنگ میز', 'Piece color': 'رنگ مهره', 'Game table': 'میز بازی', 'Who starts': 'شروع‌کننده',
   // games
   'Chess': 'شطرنج', 'Gem Stats': 'آمار جواهر', 'Chess Lessons': 'آموزش شطرنج', 'Checkers': 'چکرز (دامه)', 'Snakes and Ladders': 'مار و پله',
-  'Backgammon': 'تخته‌نرد', 'Ludo': 'لودو', 'Jigsaw Pieces': 'پازل با قطعات منحنی', 'Billiards': 'بیلیارد',
+  'Backgammon': 'تخته‌نرد', 'Ludo': 'لودو', 'Ludo \u2014 6 Players': 'لودو ــ ۶ نفره', 'Jigsaw Pieces': 'پازل با قطعات منحنی', 'Billiards': 'بیلیارد',
   'Jigsaw': 'پازل جیگسا', '4-Player Cards': 'ورق چهار نفره', 'Court Piece': 'حکم', 'Basra': 'بازی یازده', 'Baloot': 'بلوت', 'Dominoes': 'دومینو',
   'Blackjack': 'بلک‌جک', 'Mahjong Solitaire': 'ماهجونگ تک‌نفره', 'Uno': 'اونو', 'Cross Math': 'ریاضی متقاطع',
   'Sudoku': 'سودوکو', 'Water Sort': 'مرتب‌سازی آب', 'Jenga Boom': 'جنگا بوم', 'Block Clear': 'پاک‌کردن بلوک',
@@ -5070,6 +5088,7 @@ const FA_NOTES = {
   checkers: '١٦ مجموعه قانون منطقه‌ای، ١٠ سطح هوش مصنوعی، حالت دو نفره، راهنما، ٧ تم، نمای دوبعدی/سه‌بعدی، ذخیرهٔ خودکار',
   snakesladders: 'تاس بریزید، از نردبان بالا بروید، از مارها دور بمانید و به خانهٔ ١٠٠ برسید',
   backgammon: 'تاس، میله، بیرون بردن مهره‌ها، تاس دوبل، گمون، تسلیم، شمارش پیپ، هوش مصنوعی ساده',
+  ludo6: 'صفحهٔ شش‌ضلعی برای شش نفر — تاس بریزید، حرکت کنید، حریف را بزنید و جزو سه نفر اول باشید که هر ٤ مهره را به خانه می‌رسانند',
   ludo: 'مسابقهٔ کلاسیک چهار نفره — تاس بریزید، حرکت کنید، حریف را بزنید و هر ٤ مهره را به خانه برسانید',
   billiards: 'بیلیارد هشت‌توپ در برابر رایانه — برای نشانه‌گیری و قدرت بکشید، توپ‌های تکرنگ یا راه‌راه را بزنید و در پایان توپ ٨ را بیندازید',
   jigsaw: 'بکشید و جا بیندازید، ٣×٣ / ٤×٤ / ٥×٥',
@@ -5405,6 +5424,14 @@ const AZB = {
   'Chess960 (Fischer Random)': '٩٦٠ شطرنجی (فیشر تصادفی)',
   '8×8 · shuffled back rank, 960 start positions': '٨×٨ · آرخا صف قاریشدیریلیب، ٩٦٠ باشلانغیج یئرلشمه',
   'Horde Chess': 'هورد شطرنجی (پیاده اوردوسو)',
+  'King of the Hill': 'تپه شاهی شطرنجی',
+  'Fog of War Chess': 'دومان‌لی ساواش شطرنجی',
+  'Duck Chess': 'اردک شطرنجی',
+  '4-Player Team Chess': 'دؤرد نفرلیک کومانداپ شطرنج',
+  '16×8 · four armies, two teams of two': '١٦×٨ · دؤرد اوردو، ایکی نفرلیک ایکی کومانداپ',
+  '8×8 · march your king to the centre to win': '٨×٨ · شاهی مرکزه آپاریب اودون',
+  '8×8 · you only see what your pieces can reach': '٨×٨ · یالنیز داشلارینین چاتدیغی گؤزلری گؤروسوز',
+  '8×8 · a blocking duck moves after every move': '٨×٨ · هر هره‌که‌تدن سونرا مانع اردک یئرینی دَییشیر',
   '8×8 · 36 White pawns against a full Black army': '٨×٨ · ٣٦ آغ پیاده، قارانین تام اوردوسونا قارشی',
   'Eleven rule sets are available:': '١١ قایدا توپلوسو وار:',
   'Your ad here': 'بورادا سیزین ائلانینیز',
@@ -6349,7 +6376,7 @@ const AZB = {
   'Dealer': 'پایلایان',
   'Bo': 'بو',
   'Cy': 'سی',
-  'A table of twenty-seven games, all dealt out and ready to play.': 'یئگیرمی‌یئددی اویونلا دولو بیر ماسا، حاضیر و اوینامایا آماده.',
+  'A table of twenty-eight games, all dealt out and ready to play.': 'یئگیرمی‌سکّیز اویونلا دولو بیر ماسا، حاضیر و اوینامایا آماده.',
   'Search games...': 'اویونلاری آختار...',
   'Your scores live only in this browser, on this device.': 'نتیجه‌لریز یالنیز بو بروزرده و بو دستگاهدا ساخلانیر.',
   '← Back to the table': '→ ماسایا قاییت',
@@ -6364,7 +6391,7 @@ const AZB = {
   'About This Game': 'بو اویون حاقدا', 'Picture Licence': 'گورسل/شکیل مجویزی', 'New Game': 'یئنی اویون', 'Change Settings': 'تنظیملری دَییش',
   'Table color': 'ماسا رنگی', 'Piece color': 'داش رنگی', 'Game table': 'اویون ماساسی', 'Who starts': 'کیم باشلار',
   'Chess': 'شطرنج', 'Gem Stats': 'جواهر آماری', 'Chess Lessons': 'شطرنج اؤیرنمه‌لری', 'Checkers': 'چکرز (داما)', 'Snakes and Ladders': 'ایلان و نردوان',
-  'Backgammon': 'نرد', 'Ludo': 'لودو', 'Jigsaw Pieces': 'اَگری پارچالی پازل', 'Billiards': 'بیلیارد',
+  'Backgammon': 'نرد', 'Ludo': 'لودو', 'Ludo \u2014 6 Players': 'لودو ــ ٦ نفرلیک', 'Jigsaw Pieces': 'اَگری پارچالی پازل', 'Billiards': 'بیلیارد',
   'Jigsaw': 'جیگساو پازل', '4-Player Cards': 'دؤرد نفرلیک کاغیذ اویونو', 'Court Piece': 'حکم', 'Basra': '١١ اویونو', 'Baloot': 'بلوت', 'Dominoes': 'دومینو',
   'Blackjack': 'بلک‌جک', 'Mahjong Solitaire': 'تک نفرلیک ماهجونگ', 'Uno': 'اونو', 'Cross Math': 'ساییم تاپماجاسی',
   'Sudoku': 'سودوکو', 'Water Sort': 'سو سیرالاما', 'Jenga Boom': 'جنگا بوم', 'Block Clear': 'بلوک تمیزلمه',
@@ -6377,6 +6404,7 @@ const AZB_NOTES = {
   checkers: '١٦ بؤلگه قایداسی، ١٠ یئرلی هوش سویه‌سی، ایکی نفرلیک حالت، کؤمکچی، ٧ تم، ایکی‌اؤلچولو/اوچ‌اؤلچولو گؤرونوش، اؤزونه‌ساخلاما',
   snakesladders: 'زار آت، نردوانلا قالخ، ایلانلاردان قاچ و ١٠٠-ه چات',
   backgammon: 'زار، اورتا خط، داشلارین چیخماسی، ایکی‌قات زار، قمون، تسلیم اولما، پیپ ساییمی، ساده هوش',
+  ludo6: 'آلتی نفر اوچون آلتی‌گوشه‌لی لوحه — زار آت، یئری، قارشی طرفین داشینی وور و ٤ داشینی ایلک اوچ نفردن بیری کیمی ائوه چاتدیر',
   ludo: 'کلاسیک دؤرد نفرلیک یاریش — زار آت، یئری، قارشی طرفین داشینی وور و ٤ داشین هامیسینی ائوه چاتدیر',
   billiards: 'کامپیوترا قارشی ٨ توپلو بیلیارد — هدفه آلماق و گوج اوچون چک، توپلاری ووروب سون دا ٨ نومره‌نی سالا',
   jigsaw: 'سورویوب یئرلشدیر، ٣×٣ / ٤×٤ / ٥×٥',
@@ -6900,6 +6928,7 @@ const RENDER_FNS = {
   snakesladders: renderSnakes,
   munch: renderMunch,
   ludo: renderLudo,
+  ludo6: renderLudo6,
   blockclear: renderBlockClear,
   othello: renderOthello,
   mahjong: renderMahjong,
@@ -13008,6 +13037,14 @@ const CHESS_VARIANTS = {
     rules: '<p>Same pieces and rules as standard chess, but the pieces on each side\u2019s back row are shuffled at the start (the same for both sides): the bishops stand on opposite colours and the king stands between the two rooks. There are 960 possible starting positions, so you cannot rely on memorised openings.</p><p><b>Castling:</b> the king always lands on the c-file (queenside) or the g-file (kingside) and the rook next to it on the d- or f-file, whatever squares they started on. Every square between them must be empty, and the king may not start in, cross or land on an attacked square. To castle, tap your king and then the square where it will land; if the king is already on that square, tap your own rook instead.</p>' },
   horde: { label: 'Horde Chess', sub: '8\u00d78 \u00b7 36 White pawns against a full Black army',
     rules: '<p>White has no king and no pieces, only <b>36 pawns</b>. Black has the normal army. <b>You play the horde (White)</b> and win by checkmating the Black king. Black wins by capturing every White piece.</p><p>White pawns on the first rank may also advance two squares (like pawns on the second rank), and a pawn that reaches the far side promotes. Black can castle as usual; White cannot. If the side to move has no legal move the game is drawn.</p>' },
+  kingHill: { label: 'King of the Hill', sub: '8\u00d78 \u00b7 march your king to the centre to win',
+    rules: '<p>Normal chess (castling, en passant, promotion to a queen), with one extra way to win: <b>move your king onto one of the four centre squares</b> (d4, e4, d5, e5) and you win at once. Checkmate still wins too, and stalemate is a draw.</p>' },
+  fog: { noCheckRules: true, label: 'Fog of War Chess', sub: '8\u00d78 \u00b7 you only see what your pieces can reach',
+    rules: '<p>You can only see your own pieces and the squares they could move to (plus the square straight ahead of each pawn). Black pieces anywhere else are hidden in the fog. <b>There is no check:</b> a king may walk into danger, and you win by <b>capturing the enemy king</b>. A move that is blocked by an unseen piece is simply not offered, so a move can reveal a piece. No castling in this version. The computer plays by its own simple rules and does not have to guess.</p>' },
+  duck: { noCheckRules: true, label: 'Duck Chess', sub: '8\u00d78 \u00b7 a blocking duck moves after every move',
+    rules: '<p>After <b>every</b> move of a piece, the mover must also move the <b>duck</b> \u{1F986} to any empty square (it cannot stay where it is, and it cannot be captured). Nothing can move onto or through the duck. At the start the duck is off the board, so White\u2019s first move ends with placing it. <b>There is no check:</b> you win by <b>capturing the enemy king</b>. Pawns promote to a queen; en passant applies; no castling.</p>' },
+  fourPlayer: { label: '4-Player Team Chess', sub: '16\u00d78 \u00b7 four armies, two teams of two',
+    rules: '<p>Two 8\u00d78 boards joined side by side, with <b>four armies</b>: you play <b>Red</b> (bottom left) and your partner, the computer, plays <b>Yellow</b> (bottom right); <b>Blue</b> (top left) and <b>Green</b> (top right) are the other team. Turns go round the table: Red, Blue, Yellow, Green. On your turn you move one of your own army\u2019s pieces, and pieces can travel across the whole board.</p><p>Teammates never capture each other. Every king must be kept safe: a move that leaves a king of your team in check is not allowed. If your army cannot move, your turn is skipped. <b>Checkmate either king of a team and that team loses</b>. Pawns move two squares on their first move, may capture en passant, and promote to a queen. Each king may castle with the two rooks on its own half of the board.</p>' },
   tamerlaneFull: { label: 'Tamerlane Chess (Full)', sub: '11\u00d710 + 2 citadels (112 squares) \u00b7 full historical piece roster' },
   tamerlaneSimple: { label: 'Tamerlane Chess (Simplified)', sub: '11\u00d710 \u00b7 same roster, streamlined rules' },
   doubleChess: { label: 'Double Chess', sub: '16\u00d712 \u00b7 two kings a side, mate either one' },
@@ -13022,7 +13059,7 @@ const CHESS_VARIANTS = {
   almostChess: { label: 'Almost Chess', sub: '8\u00d78 \u00b7 a Chancellor takes the queen\'s place',
     rules: '<p>Ordinary 8\u00d78 chess, except each side\'s queen is replaced by a <b>Chancellor</b> (moves like a rook or a knight). Pawns promote to a Chancellor. Two-square pawn starts and en passant apply. No castling in this version.</p>' },
 };
-const CHESS_VARIANT_ORDER = ['standard', 'chess960', 'horde', 'tamerlaneFull', 'tamerlaneSimple', 'doubleChess', 'capablanca', 'gothic', 'losAlamos', 'almostChess', 'glinski'];
+const CHESS_VARIANT_ORDER = ['standard', 'chess960', 'horde', 'kingHill', 'fog', 'duck', 'fourPlayer', 'tamerlaneFull', 'tamerlaneSimple', 'doubleChess', 'capablanca', 'gothic', 'losAlamos', 'almostChess', 'glinski'];
 
 /* ===== Graph chess engine (hex boards) — Glinski's Hexagonal Chess ===== */
 const GC_FILES = 'abcdefghikl';
@@ -13291,10 +13328,14 @@ function chRenderSetup() {
       "Use the Hint button during a game, then the post-game Review, to learn from your mistakes."
     ])}
     ${aboutBlock(`
-      <p>Eleven rule sets are available:</p>
+      <p>Fifteen rule sets are available:</p>
       <ul>
         <li><b>Standard</b> \u2014 classic 8\u00d78 chess: castling, en passant, and promotion to the piece of your choice.</li>
         <li><b>Chess960 (Fischer Random)</b> \u2014 standard rules, but the back-rank pieces are shuffled into one of 960 start positions.</li>
+        <li><b>King of the Hill</b> \u2014 normal chess, but moving your king to the centre wins at once.</li>
+        <li><b>Fog of War</b> \u2014 you only see the squares your pieces can reach; capture the king to win.</li>
+        <li><b>4-Player Team Chess</b> \u2014 four coloured armies on a 16\u00d78 board; you and the computer partner against the other two.</li>
+        <li><b>Duck Chess</b> \u2014 a blocking duck is moved after every move; capture the king to win.</li>
         <li><b>Horde Chess</b> \u2014 you command 36 pawns and no king against Black\u2019s full army; checkmate the king to win.</li>
         <li><b>Tamerlane Chess (Full)</b> \u2014 Timur's 15th-century "Great Chess" on an 11\u00d710 board, with ten distinct piece types (Ferz, Wazir, Giraffe, Scout, Elephant, Camel and Siege Engine, alongside King, Rook and Knight) and pawns that each promote to the piece from their own file. The board also has two extra squares sticking out of its sides \u2014 the citadels, 112 squares in all. Your king may step into the enemy citadel to claim a draw. Historical sources disagree on a few of the odder pieces (the Giraffe especially) \u2014 this uses one well-documented reading.</li>
         <li><b>Tamerlane Chess (Simplified)</b> \u2014 the same 11\u00d710 board and piece roster, with the Scout allowed to move like an ordinary bishop, every pawn promoting to a Rook, and no citadel draw.</li>
@@ -14447,6 +14488,7 @@ const VC_PIECES = {
   A: { name: 'Archbishop', glyph: 'Ar', slide: VC_DIAG, leaps: VC_KNIGHT_OFFS, value: 7.5 },
   M: { name: 'Chancellor', glyph: 'Ch', slide: VC_ORTHO, leaps: VC_KNIGHT_OFFS, value: 8.5 },
   P: { name: 'Pawn', glyph: 'P', value: 1 },
+  X: { name: 'Duck', glyph: '\u{1F986}', value: 0 },
 };
 
 const VC_VARIANT_CFG = {
@@ -14458,6 +14500,10 @@ const VC_VARIANT_CFG = {
   almostChess: { rows: 8, cols: 8, boardKind: 'setup', back: 'RNBMKBNR', hasCitadels: false, citadelDraw: false, scoutMinDist: 2, promotion: 'M', pawnFirstMoveMax: 2, kingsPerSide: 1 },
   chess960: { rows: 8, cols: 8, boardKind: '960', hasCitadels: false, citadelDraw: false, scoutMinDist: 2, promotion: 'queen', pawnFirstMoveMax: 2, kingsPerSide: 1, castling: true },
   horde: { rows: 8, cols: 8, boardKind: 'horde', back: 'RNBQKBNR', hasCitadels: false, citadelDraw: false, scoutMinDist: 2, promotion: 'queen', pawnFirstMoveMax: 2, kingsPerSide: 1, castling: true, horde: true },
+  kingHill: { rows: 8, cols: 8, boardKind: 'setup', back: 'RNBQKBNR', hasCitadels: false, citadelDraw: false, scoutMinDist: 2, promotion: 'queen', pawnFirstMoveMax: 2, kingsPerSide: 1, castling: true, hill: true },
+  fog: { rows: 8, cols: 8, boardKind: 'setup', back: 'RNBQKBNR', hasCitadels: false, citadelDraw: false, scoutMinDist: 2, promotion: 'queen', pawnFirstMoveMax: 2, kingsPerSide: 1, noCheck: true, fog: true },
+  duck: { rows: 8, cols: 8, boardKind: 'setup', back: 'RNBQKBNR', hasCitadels: false, citadelDraw: false, scoutMinDist: 2, promotion: 'queen', pawnFirstMoveMax: 2, kingsPerSide: 1, noCheck: true, duck: true },
+  fourPlayer: { rows: 8, cols: 16, boardKind: 'four', hasCitadels: false, citadelDraw: false, scoutMinDist: 2, promotion: 'queen', pawnFirstMoveMax: 2, kingsPerSide: 2, fourArmy: true },
   doubleChess: { rows: 12, cols: 16, boardKind: 'double', hasCitadels: false, citadelDraw: false, scoutMinDist: 2, promotion: 'queen', pawnFirstMoveMax: 4, kingsPerSide: 2 },
 };
 
@@ -14531,6 +14577,25 @@ function vcBuildHordeBoard() {
   return board;
 }
 
+// 4-Player Team Chess: two 8x8 armies per team on a 16x8 board. Armies: r (red) & y (yellow) = team 'w' (bottom),
+// b (blue) & g (green) = team 'b' (top). Turn order r -> b -> y -> g.
+const VC_ARMY_ORDER = ['r', 'b', 'y', 'g'];
+const VC_ARMY_TEAM = { r: 'w', y: 'w', b: 'b', g: 'b' };
+const VC_ARMY_NAME = { r: 'Red', b: 'Blue', y: 'Yellow', g: 'Green' };
+const VC_ARMY_HEX = { r: '#e0645c', b: '#4a7fe0', y: '#f2d94e', g: '#4fb866' };
+function vcBuildFourBoard() {
+  const back = 'RNBQKBNR';
+  const board = Array.from({length: 8}, () => Array(16).fill(null));
+  for (let c = 0; c < 16; c++) {
+    const t = back[c % 8];
+    board[7][c] = {type: t, color: 'w', army: c < 8 ? 'r' : 'y'};
+    board[6][c] = {type: 'P', color: 'w', army: c < 8 ? 'r' : 'y'};
+    board[0][c] = {type: t, color: 'b', army: c < 8 ? 'b' : 'g'};
+    board[1][c] = {type: 'P', color: 'b', army: c < 8 ? 'b' : 'g'};
+  }
+  return board;
+}
+function vcHumanTurn(game) { return game.cfg.fourArmy ? game.army === 'r' : game.turn === 'w'; }
 function vcBuildGame(variantId) {
   const cfg = VC_VARIANT_CFG[variantId];
   const boardKind = cfg.boardKind;
@@ -14539,8 +14604,8 @@ function vcBuildGame(variantId) {
   const board = boardKind === 'tamerlane' ? vcBuildTamerlaneBoard()
     : (boardKind === 'setup' ? vcBuildSetupBoard(cfg)
     : (boardKind === '960' ? vcBuildSetupBoard({rows: 8, cols: 8, back: back960})
-    : (boardKind === 'horde' ? vcBuildHordeBoard() : vcBuildDoubleBoard())));
-  const back = back960 || (boardKind === 'horde' ? 'RNBQKBNR' : null);
+      : (boardKind === 'horde' ? vcBuildHordeBoard() : (boardKind === 'four' ? vcBuildFourBoard() : vcBuildDoubleBoard()))));
+  const back = back960 || (boardKind === 'horde' ? 'RNBQKBNR' : (cfg.castling && boardKind === 'setup' ? cfg.back : null));
   const cast = back ? {kc: back.indexOf('K'), rQ: back.indexOf('R'), rK: back.lastIndexOf('R'), back} : null;
   // Full Tamerlane has two extra squares that stick out of the board: Black's citadel on the left edge beside rank 9,
   // White's citadel on the right edge beside rank 2. A king may only enter the ENEMY citadel (to claim a draw).
@@ -14548,13 +14613,19 @@ function vcBuildGame(variantId) {
   return {
     variant: variantId, cfg, rows: cfg.rows, cols: cfg.cols, board,
     turn: 'w', over: false, enPassant: null,
-    citadels, citadelDrawTriggered: false, cast,
+    citadels, citadelDrawTriggered: false, cast, duck: null, duckPending: null,
+    army: cfg.fourArmy ? 'r' : null,
   };
 }
 
 function vcInBounds(game, r, c) { return r >= 0 && r < game.rows && c >= 0 && c < game.cols; }
 
 function vcPieceMoves(game, r, c) {
+  const raw = vcPieceMovesRaw(game, r, c);
+  if (!game.duck) return raw;
+  return raw.filter(m => { const t = game.board[m.to[0]][m.to[1]]; return !(t && t.type === 'X'); });
+}
+function vcPieceMovesRaw(game, r, c) {
   const board = game.board;
   const piece = board[r][c];
   if (!piece) return [];
@@ -14679,6 +14750,7 @@ function vcAttacksSquare(game, r, c, byColor) {
 }
 
 function vcKingsAttacked(game, color) {
+  if (game.cfg.noCheck) return false;   // Fog of War and Duck Chess have no check
   const opp = color === 'w' ? 'b' : 'w';
   for (let r = 0; r < game.rows; r++) {
     for (let c = 0; c < game.cols; c++) {
@@ -14689,6 +14761,10 @@ function vcKingsAttacked(game, color) {
   return false;
 }
 
+function vcAdvanceArmy(game) {
+  game.army = VC_ARMY_ORDER[(VC_ARMY_ORDER.indexOf(game.army) + 1) % 4];
+  game.turn = VC_ARMY_TEAM[game.army];
+}
 function vcApplyMove(game, move) {
   if (move.kingTo) {   // Chess960-style castling: lift both pieces, then set them down
     const [row, kc] = move.from, rc = move.castleRook.from[1];
@@ -14737,7 +14813,8 @@ function vcApplyMove(game, move) {
     const target = piece.color === 'w' ? game.citadels.w : game.citadels.b;
     if (target && tr === target[0] && tc === target[1]) game.citadelDrawTriggered = true;
   }
-  game.turn = piece.color === 'w' ? 'b' : 'w';
+  if (game.cfg.fourArmy) vcAdvanceArmy(game);
+  else game.turn = piece.color === 'w' ? 'b' : 'w';
   return {captured: enPassantCaptured || capturedPiece || null};
 }
 
@@ -14755,16 +14832,17 @@ function vcCitadelMoves(game, color) {
 
 function vcCloneGame(game) { return JSON.parse(JSON.stringify(game)); }
 
-function vcLegalMoves(game, color) {
+function vcLegalMoves(game, color, anyArmy) {
   const pseudo = [];
   for (let r = 0; r < game.rows; r++) {
     for (let c = 0; c < game.cols; c++) {
       const p = game.board[r][c];
-      if (p && p.color === color) pseudo.push(...vcPieceMoves(game, r, c));
+      if (p && p.color === color && (!game.cfg.fourArmy || anyArmy || p.army === game.army)) pseudo.push(...vcPieceMoves(game, r, c));
     }
   }
-  if (game.cfg.kingsPerSide === 2) pseudo.push(...vcCastleMoves(game, color));
+  if (game.cfg.kingsPerSide === 2) pseudo.push(...vcCastleMoves(game, color).filter(m => !game.cfg.fourArmy || anyArmy || game.board[m.from[0]][m.from[1]].army === game.army));
   if (game.cfg.castling) pseudo.push(...vcCastle960(game, color));
+  if (game.cfg.noCheck) return pseudo;
   return pseudo.filter(m => {
     const clone = vcCloneGame(game);
     vcApplyMove(clone, m);
@@ -14776,15 +14854,38 @@ function vcEvaluate(board) {
   let score = 0;
   board.forEach(row => row.forEach(p => {
     if (!p) return;
-    const v = VC_PIECES[p.type] ? VC_PIECES[p.type].value : 1;
-    score += p.color === 'w' ? v : -v;
+    let v = VC_PIECES[p.type] ? VC_PIECES[p.type].value : 1;
+    if (p.type === 'K' && vcGame && vcGame.cfg.noCheck) v = 1000;   // the king is capturable here
+    if (p.color === 'w') score += v; else if (p.color === 'b') score -= v;
   }));
   return score;
+}
+function vcOnHill(game, r, c) { return r >= game.rows / 2 - 1 && r <= game.rows / 2 && c >= game.cols / 2 - 1 && c <= game.cols / 2; }
+function vcHillScore(game) {
+  let sc = 0;
+  for (let r = 0; r < game.rows; r++) for (let c = 0; c < game.cols; c++) {
+    const p = game.board[r][c];
+    if (!p || p.type !== 'K') continue;
+    const sign = p.color === 'w' ? 1 : -1;
+    if (vcOnHill(game, r, c)) sc += sign * 1000;
+    else sc += sign * (3.5 - Math.max(Math.abs(r - 3.5), Math.abs(c - 3.5))) * 0.1;
+  }
+  return sc;
+}
+// Score of a position for the engines: material, plus the hill goal in King of the Hill.
+function vcScore(game) {
+  let sc = vcEvaluate(game.board);
+  if (game.cfg.hill) {
+    sc += vcHillScore(game);
+    // if White could step onto the hill next move, that is nearly as bad for Black as losing the king
+    if (game.turn === 'w' && vcLegalMoves(game, 'w').some(m => { const q = game.board[m.from[0]][m.from[1]]; return q && q.type === 'K' && vcOnHill(game, m.to[0], m.to[1]); })) sc += 500;
+  }
+  return sc;
 }
 
 function vcRulesHtml(variantId) {
   const v = CHESS_VARIANTS[variantId];
-  return `<p>Rule set: <b>${v.label}</b>.</p>${v.rules || `<p>${v.sub}.</p>`}<p>You play White and move first. Checkmate wins; stalemate is a draw.</p>`;
+  return `<p>Rule set: <b>${v.label}</b>.</p>${v.rules || `<p>${v.sub}.</p>`}<p>You play White and move first. ${CHESS_VARIANTS[variantId].noCheckRules ? '' : 'Checkmate wins; stalemate is a draw.'}</p>`;
 }
 
 function vcAutosave() {
@@ -14821,7 +14922,7 @@ function vcRenderBoard() {
   vcStats = safeGet('vc-stats-' + game.variant, {wins: 0, losses: 0, draws: 0});
   view.innerHTML = `
     <h2 class="game-title">Chess \u2014 ${CHESS_VARIANTS[game.variant].label}</h2>
-    <p class="game-sub">${game.cfg.horde ? "You play the horde (White) \u2014 checkmate the Black king." : "You play White."}${game.cast && game.cfg.boardKind === '960' ? " Start position: " + game.cast.back + "." : ""}</p>
+    <p class="game-sub">${game.cfg.horde ? "You play the horde (White) \u2014 checkmate the Black king." : (game.cfg.fourArmy ? "You play Red (bottom left); the computer plays your partner Yellow against Blue and Green. Turns go Red \u2192 Blue \u2192 Yellow \u2192 Green." : game.cfg.duck ? "You play White. After each move, move the duck to an empty square \u2014 capture the king to win." : (game.cfg.fog ? "You play White. You only see what your pieces can reach \u2014 capture the king to win." : (game.cfg.hill ? "You play White. Walk your king to the centre squares to win." : "You play White.")))}${game.cast && game.cfg.boardKind === '960' ? " Start position: " + game.cast.back + "." : ""}</p>
     ${aboutBlock(vcRulesHtml(game.variant))}
     <div class="ck-wrap">
       <div class="ch-board vc-board" id="vcBoard" style="grid-template-columns:repeat(${game.cols + (game.citadels ? 2 : 0)},1fr); grid-template-rows:repeat(${game.rows},1fr);"></div>
@@ -14851,6 +14952,20 @@ function vcRenderBoard() {
   vcUpdateStatus();
   cclkRender();
   if (vcGame.over) vcRenderGameReview();
+  else if (vcGame.cfg.fourArmy && !vcHumanTurn(vcGame)) setTimeout(vcAiTurn, 600);
+}
+
+// Fog of War: the squares White can see = its own pieces, every square they can move to, and the square ahead of each pawn.
+function vcFogVisible(game) {
+  const vis = new Set();
+  for (let r = 0; r < game.rows; r++) for (let c = 0; c < game.cols; c++) {
+    const p = game.board[r][c];
+    if (!p || p.color !== 'w') continue;
+    vis.add(r + ',' + c);
+    vcPieceMoves(game, r, c).forEach(m => vis.add(m.to[0] + ',' + m.to[1]));
+    if (p.type === 'P' && r > 0) vis.add((r - 1) + ',' + c);
+  }
+  return vis;
 }
 
 function vcDrawBoard() {
@@ -14858,10 +14973,12 @@ function vcDrawBoard() {
   const boardEl = document.getElementById('vcBoard');
   if (!boardEl) return;
   boardEl.innerHTML = '';
-  const legal = (!game.over && game.turn === 'w') ? vcLegalMoves(game, 'w').concat(vcCitadelMoves(game, 'w')) : [];
+  const legal = (!game.over && vcHumanTurn(game)) ? vcLegalMoves(game, 'w').concat(vcCitadelMoves(game, 'w')) : [];
   const selMoves = vcSelected ? legal.filter(m => m.from[0] === vcSelected[0] && m.from[1] === vcSelected[1]) : [];
   const targets = new Set(selMoves.map(m => m.to[0] + ',' + m.to[1]));
   const wide = !!game.citadels;
+  const fogVis = (game.cfg.fog && !game.over) ? vcFogVisible(game) : null;
+  const duckPick = !!(game.duckPending === 'w' && !game.over);
   for (let r = 0; r < game.rows; r++) {
     for (let c = wide ? -1 : 0; c < game.cols + (wide ? 1 : 0); c++) {
       if (c < 0 || c >= game.cols) {            // the two edge columns only hold the citadels
@@ -14881,14 +14998,19 @@ function vcDrawBoard() {
       sq.className = 'ch-square ' + ((r + c) % 2 === 0 ? 'light' : 'dark');
       if (vcSelected && vcSelected[0] === r && vcSelected[1] === c) sq.classList.add('selected');
       if (targets.has(r + ',' + c)) sq.classList.add('move-highlight');
+      if (duckPick && !game.board[r][c]) sq.classList.add('move-highlight');
+      const hidden = !!(fogVis && !fogVis.has(r + ',' + c));
+      if (hidden) sq.classList.add('fog');
+      if (game.cfg.hill && vcOnHill(game, r, c)) sq.classList.add('hill');
       if (vcHintMove && ((vcHintMove.from[0] === r && vcHintMove.from[1] === c) || (vcHintMove.to[0] === r && vcHintMove.to[1] === c))) {
         sq.classList.add('hint-square');
       }
       const piece = game.board[r][c];
-      if (piece) {
+      if (piece && !(hidden && piece.color === 'b')) {
         const pEl = document.createElement('div');
-        pEl.className = 'ch-piece vc-piece ' + (piece.color === 'w' ? 'white' : 'black');
+        pEl.className = 'ch-piece vc-piece ' + (piece.color === 'w' ? 'white' : (piece.color === 'd' ? 'duck' : 'black'));
         pEl.textContent = VC_PIECES[piece.type].glyph;
+        if (piece.army) { pEl.style.background = VC_ARMY_HEX[piece.army]; pEl.style.color = (piece.army === 'y') ? '#2b2400' : '#fff'; }
         sq.appendChild(pEl);
       }
       sq.addEventListener('click', () => vcHandleClick(r, c));
@@ -14897,16 +15019,58 @@ function vcDrawBoard() {
   }
 }
 
+// Duck Chess: set the duck down on an empty square; the turn then passes to the other side.
+function vcPlaceDuck(game, r, c, color) {
+  if (game.duck) game.board[game.duck[0]][game.duck[1]] = null;
+  game.board[r][c] = {type: 'X', color: 'd'};
+  game.duck = [r, c];
+  game.duckPending = null;
+  game.turn = color === 'w' ? 'b' : 'w';
+  if (color === 'w') {
+    cclkMoveMade('w');
+    vcAutosave();
+    vcDrawBoard();
+    vcUpdateStatus();
+    setTimeout(vcAiTurn, 500);
+  }
+}
+// The computer puts the duck where it hurts White's best capture most.
+function vcAiPlaceDuck(game) {
+  const old = game.duck;
+  if (old) game.board[old[0]][old[1]] = null;
+  let best = [], bestVal = Infinity;
+  for (let r = 0; r < game.rows; r++) for (let c = 0; c < game.cols; c++) {
+    if (game.board[r][c] || (old && old[0] === r && old[1] === c)) continue;
+    game.board[r][c] = {type: 'X', color: 'd'}; game.duck = [r, c];
+    let worst = 0;
+    vcLegalMoves(game, 'w').forEach(m => {
+      const t = game.board[m.to[0]][m.to[1]];
+      const v = t ? (t.type === 'K' ? 1000 : (VC_PIECES[t.type] ? VC_PIECES[t.type].value : 1)) : 0;
+      if (v > worst) worst = v;
+    });
+    game.board[r][c] = null;
+    if (worst < bestVal) { bestVal = worst; best = [[r, c]]; } else if (worst === bestVal) best.push([r, c]);
+  }
+  game.duck = null;
+  const pick = best.length ? best[Math.floor(Math.random() * best.length)] : old;
+  if (!pick) return;
+  game.board[pick[0]][pick[1]] = {type: 'X', color: 'd'};
+  game.duck = [pick[0], pick[1]];
+}
 function vcHandleClick(r, c) {
   const game = vcGame;
-  if (!game || game.over || game.turn !== 'w') return;
+  if (!game || game.over || !vcHumanTurn(game)) return;
+  if (game.duckPending === 'w') {   // Duck Chess: second half of the turn
+    if (game.board[r] && game.board[r][c] === null) vcPlaceDuck(game, r, c, 'w');
+    return;
+  }
   const legal = vcLegalMoves(game, 'w').concat(vcCitadelMoves(game, 'w'));
   const piece = game.board[r] && game.board[r][c];
   if (vcSelected) {
     const mv = legal.find(m => m.from[0] === vcSelected[0] && m.from[1] === vcSelected[1] && m.to[0] === r && m.to[1] === c);
     if (mv) { vcSelected = null; vcExecute(mv); return; }
   }
-  if (piece && piece.color === 'w') { vcSelected = [r, c]; vcDrawBoard(); }
+  if (piece && piece.color === 'w' && (!game.cfg.fourArmy || piece.army === 'r')) { vcSelected = [r, c]; vcDrawBoard(); }
   else { vcSelected = null; vcDrawBoard(); }
 }
 
@@ -14947,7 +15111,7 @@ function vcBestMoveForWhite(game) {
   moves.forEach(m => {
     const clone = vcCloneGame(game);
     vcApplyMove(clone, m);
-    const score = vcEvaluate(clone.board);
+    const score = vcScore(clone);
     if (score > bestScore) { bestScore = score; best = m; }
   });
   return best;
@@ -14955,7 +15119,7 @@ function vcBestMoveForWhite(game) {
 
 function vcShowHint() {
   const game = vcGame;
-  if (!game || game.over || game.turn !== 'w') return;
+  if (!game || game.over || !vcHumanTurn(game) || game.duckPending) return;
   const move = vcBestMoveForWhite(game);
   if (!move) return;
   vcHintMove = move;
@@ -14986,10 +15150,10 @@ function vcAnalyzePlayerMove(game, move) {
   if (!bestMove) return null;
   const bestClone = vcCloneGame(game);
   vcApplyMove(bestClone, bestMove);
-  const bestVal = vcEvaluate(bestClone.board);
+  const bestVal = vcScore(bestClone);
   const actualClone = vcCloneGame(game);
   vcApplyMove(actualClone, move);
-  const actualVal = vcEvaluate(actualClone.board);
+  const actualVal = vcScore(actualClone);
   const lost = Math.max(0, bestVal - actualVal);
   let quality = 'good';
   if (lost >= 5) quality = 'blunder';
@@ -15015,6 +15179,14 @@ function vcRenderGameReview() {
   `;
 }
 
+// In the no-check variants: the colour whose king has been captured, or null.
+function vcKingCaptured(game) {
+  if (!game.cfg.noCheck) return null;
+  const has = col => game.board.some(row => row.some(p => p && p.type === 'K' && p.color === col));
+  if (!has('b')) return 'b';
+  if (!has('w')) return 'w';
+  return null;
+}
 function vcExecute(move) {
   const game = vcGame;
   if (move.citadel) { game.citadelDrawTriggered = true; game.citadelKing = 'w'; cclkMoveMade('w'); vcHintMove = null; vcAutosave(); vcDrawBoard(); vcCheckGameOver(); return; }
@@ -15024,14 +15196,16 @@ function vcExecute(move) {
   const analysisEntry = vcAnalyzePlayerMove(game, move);
   vcHintMove = null;
   vcApplyMove(game, move);
-  cclkMoveMade('w');
+  if (!game.cfg.duck) cclkMoveMade('w');
   if (analysisEntry) vcMoveAnalysis.push(analysisEntry);
+  if (game.cfg.duck && vcKingCaptured(game) === null) { game.turn = 'w'; game.duckPending = 'w'; }
   vcAutosave();
   vcDrawBoard();
   vcSpawnCaptureEffect(game, capturedPiece, capturedSquare);
   if (vcCheckGameOver()) return;
   vcUpdateStatus();
-  if (game.turn === 'b') setTimeout(vcAiTurn, 500);
+  if (game.duckPending === 'w') return;
+  if (!vcHumanTurn(game)) setTimeout(vcAiTurn, 500);
 }
 
 // Same idea as chAiMoveFacts(), but reading the generic variant engine's
@@ -15064,7 +15238,9 @@ function vcAiTurn() {
   const game = vcGame;
   if (!game || game.over) return;
   vcHintMove = null;
-  const moves = vcLegalMoves(game, 'b');
+  const aiCol = game.turn;
+  const aiArmy = game.army;
+  const moves = vcLegalMoves(game, aiCol);
   if (!moves.length) { vcCheckGameOver(); return; }
   const tier = chTierForElo(chEloRating);
   let chosen;
@@ -15074,9 +15250,9 @@ function vcAiTurn() {
     const scored = moves.map(m => {
       const clone = vcCloneGame(game);
       vcApplyMove(clone, m);
-      return {m, score: vcEvaluate(clone.board)};
+      return {m, score: vcScore(clone)};
     });
-    scored.sort((a, b) => a.score - b.score); // black prefers the most negative (black-favoring) score
+    scored.sort((a, b) => aiCol === 'b' ? a.score - b.score : b.score - a.score); // black wants the most negative score, the white team the highest
     chosen = scored[0].m;
   }
   const piece = game.board[chosen.from[0]][chosen.from[1]];
@@ -15085,17 +15261,33 @@ function vcAiTurn() {
     (chosen.enPassantCapture ? game.board[chosen.enPassantCapture[0]][chosen.enPassantCapture[1]] : null));
   const capturedSquare = chosen.enPassantCapture || (capturedPiece ? chosen.to : null);
   vcApplyMove(game, chosen);
-  cclkMoveMade('b');
+  if (game.cfg.duck && vcKingCaptured(game) === null) vcAiPlaceDuck(game);
+  if (!game.cfg.fourArmy) cclkMoveMade('b');
   const inCheck = vcKingsAttacked(game, 'w');
-  const explanation = chExplainMove(vcAiMoveFacts(chosen, piece, originalType, capturedPiece, game, inCheck));
+  const explanation = game.cfg.fourArmy
+    ? VC_ARMY_NAME[aiArmy] + (capturedPiece ? ' captured a ' + ((VC_PIECES[capturedPiece.type] || {}).name || 'piece').toLowerCase() + '.' : ' moved.')
+    : game.cfg.fog
+    ? (capturedPiece ? 'Black captured your ' + ((VC_PIECES[capturedPiece.type] || {}).name || 'piece').toLowerCase() + '.' : 'Black moved somewhere in the fog.')
+    : chExplainMove(vcAiMoveFacts(chosen, piece, originalType, capturedPiece, game, inCheck));
   vcAutosave();
   vcDrawBoard();
   vcSpawnCaptureEffect(game, capturedPiece, capturedSquare);
   chShowCoachNote('vcCoachNote', explanation);
   if (vcCheckGameOver()) return;
   vcUpdateStatus();
+  if (game.cfg.fourArmy) {
+    if (vcHumanTurn(game)) cclkMoveMade('b');
+    else setTimeout(vcAiTurn, 450);
+  }
 }
 
+function vcHillWinner(game) {
+  for (let r = 0; r < game.rows; r++) for (let c = 0; c < game.cols; c++) {
+    const p = game.board[r][c];
+    if (p && p.type === 'K' && vcOnHill(game, r, c)) return p.color;
+  }
+  return null;
+}
 function vcCheckGameOver() {
   const game = vcGame;
   if (game.citadelDrawTriggered) {
@@ -15110,8 +15302,26 @@ function vcCheckGameOver() {
     vcRenderGameReview();
     return true;
   }
+  const kc = vcKingCaptured(game);
+  if (kc || (game.cfg.hill && vcHillWinner(game))) {
+    const winner = kc ? (kc === 'b' ? 'w' : 'b') : vcHillWinner(game);
+    game.over = true;
+    pauseTimer(); cclkStop();
+    if (winner === 'w') { vcStats.wins++; vcUpdateStatus(kc ? 'You captured the king \u2014 you win!' : 'Your king reached the hill \u2014 you win!'); }
+    else { vcStats.losses++; vcUpdateStatus(kc ? 'Your king was captured \u2014 black wins.' : 'Black\u2019s king reached the hill \u2014 black wins.'); }
+    safeSet('vc-stats-' + game.variant, vcStats);
+    vcAutosave(); vcDrawBoard(); vcUpdateStatsDom(); vcRenderGameReview();
+    return true;
+  }
+  if (game.duckPending) return false;
+  if (game.cfg.fourArmy) {   // an army with no legal move passes its turn to the next one
+    for (let i = 0; i < 3; i++) {
+      if (vcLegalMoves(game, game.turn).length || !vcLegalMoves(game, game.turn, true).length) break;
+      vcAdvanceArmy(game);
+    }
+  }
   const nextColor = game.turn;
-  const moves = vcLegalMoves(game, nextColor);
+  const moves = vcLegalMoves(game, nextColor, true);
   const inCheck = vcKingsAttacked(game, nextColor);
   if (moves.length === 0) {
     game.over = true;
@@ -15149,6 +15359,11 @@ function vcUpdateStatus(msg) {
   if (!status) return;
   if (msg) { status.textContent = msg; return; }
   const game = vcGame;
+  if (game.cfg.fourArmy) {
+    status.textContent = (vcHumanTurn(game) ? 'Your move (Red).' : VC_ARMY_NAME[game.army] + ' is thinking\u2026') + (vcKingsAttacked(game, game.turn) ? ' Check!' : '');
+    return;
+  }
+  if (game.duckPending === 'w') { status.textContent = 'Now move the duck \u{1F986}: tap any empty square.'; return; }
   const inCheck = vcKingsAttacked(game, game.turn);
   status.textContent = (game.turn === 'w' ? 'Your move.' : 'Black is thinking\u2026') + (inCheck ? ' Check!' : '');
 }
@@ -15272,6 +15487,10 @@ function chessStatsRows() {
     { name: 'Gothic Chess', ...rd('vc-stats-gothic') },
     { name: 'Los Alamos Chess', ...rd('vc-stats-losAlamos') },
     { name: 'Almost Chess', ...rd('vc-stats-almostChess') },
+    { name: 'King of the Hill', ...rd('vc-stats-kingHill') },
+    { name: 'Fog of War Chess', ...rd('vc-stats-fog') },
+    { name: 'Duck Chess', ...rd('vc-stats-duck') },
+    { name: '4-Player Team Chess', ...rd('vc-stats-fourPlayer') },
   ];
 }
 function renderGemStats() {
@@ -18907,11 +19126,16 @@ const SCORE_SOURCES = [
   { name: 'Gothic Chess', key: 'vc-stats-gothic', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'},{k:'draws',label:'Draws'}] },
   { name: 'Los Alamos Chess', key: 'vc-stats-losAlamos', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'},{k:'draws',label:'Draws'}] },
   { name: 'Almost Chess', key: 'vc-stats-almostChess', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'},{k:'draws',label:'Draws'}] },
+  { name: 'King of the Hill', key: 'vc-stats-kingHill', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'},{k:'draws',label:'Draws'}] },
+  { name: 'Fog of War Chess', key: 'vc-stats-fog', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'},{k:'draws',label:'Draws'}] },
+  { name: 'Duck Chess', key: 'vc-stats-duck', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'},{k:'draws',label:'Draws'}] },
+  { name: '4-Player Team Chess', key: 'vc-stats-fourPlayer', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'},{k:'draws',label:'Draws'}] },
   { name: '4-Player Cards', key: 'cards4-stats', fields: [{k:'you',label:'You'},{k:'ai',label:'AI'}] },
   { name: 'Backgammon', key: 'bg-stats', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'}] },
   { name: 'Snakes and Ladders', key: 'snl-stats', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'}] },
   { name: 'Jenga Boom', key: 'jenga-stats', fields: [{k:'best',label:'Best run'},{k:'towers',label:'Towers played'}] },
   { name: 'Ludo', key: 'ludo-stats', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'}] },
+  { name: 'Ludo \u2014 6 Players', key: 'ludo6-stats', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'}] },
   { name: 'Billiards', key: 'bil-stats', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'}] },
   { name: 'Munch', key: 'munch-stats', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'}] },
   { name: 'Darts', key: 'dt-stats', fields: [{k:'wins',label:'Wins'},{k:'losses',label:'Losses'}] },
@@ -20203,6 +20427,207 @@ function ludoEndGame() {
   const podiumNames = { red: 'You', green: 'Green', yellow: 'Yellow', blue: 'Blue' };
   const podiumEntries = ranking.map((c, i) => ({ name: podiumNames[c], you: c === 'red', detail: ludoFinishOrder.includes(c) ? 'All four tokens home' : 'Still on the board' }));
   setTimeout(() => showPodium({ game: 'Ludo', entries: podiumEntries }), 900);
+}
+
+/* ---------------- LUDO (6 players) ---------------- */
+const L6_SEATS = ['red', 'orange', 'yellow', 'green', 'blue', 'purple'];
+const L6_HEX = { red: '#C53F34', orange: '#E0832A', yellow: '#D4A017', green: '#3A8C5A', blue: '#3A6FA8', purple: '#8E4FB8' };
+const L6_SIDE = 7, L6_LOOP = 42, L6_HOME = 3, L6_FINISH = 46, L6_R = 44;
+function l6Corner(k) { const a = (90 + 60 * k) * Math.PI / 180; return [L6_R * Math.cos(a), L6_R * Math.sin(a)]; }
+const L6_PATH = (() => {
+  const out = [];
+  for (let side = 0; side < 6; side++) {
+    const A = l6Corner(side), B = l6Corner((side + 1) % 6);
+    for (let i = 0; i < L6_SIDE; i++) out.push([A[0] + (B[0] - A[0]) * i / L6_SIDE, A[1] + (B[1] - A[1]) * i / L6_SIDE]);
+  }
+  return out;
+})();
+const L6_START = {}; L6_SEATS.forEach((c, k) => { L6_START[c] = k * L6_SIDE; });
+const L6_SAFE = new Set(); L6_SEATS.forEach(c => { L6_SAFE.add(L6_START[c]); L6_SAFE.add((L6_START[c] + 4) % L6_LOOP); });
+function l6HomePos(color, j) { const [x, y] = l6Corner(L6_SEATS.indexOf(color)); const t = 0.17 * (j + 1); return [x * (1 - t), y * (1 - t)]; }
+function l6YardCenter(color) { const a = (90 + 60 * L6_SEATS.indexOf(color) + 30) * Math.PI / 180; return [25 * Math.cos(a), 25 * Math.sin(a)]; }
+const L6_YARD_OFF = [[-3.6, -3.6], [3.6, -3.6], [-3.6, 3.6], [3.6, 3.6]];
+function l6FinishPos(color, i) {
+  const [x, y] = l6Corner(L6_SEATS.indexOf(color)); const n = Math.hypot(x, y);
+  const bx = x * 0.28, by = y * 0.28, px = -y / n, py = x / n;
+  return [bx + px * (i - 1.5) * 3.4, by + py * (i - 1.5) * 3.4];
+}
+function l6Pos(color, s, i) {
+  if (s === 0) { const [cx, cy] = l6YardCenter(color); return [cx + L6_YARD_OFF[i][0], cy + L6_YARD_OFF[i][1]]; }
+  if (s <= L6_LOOP) return L6_PATH[(L6_START[color] + s - 1) % L6_LOOP];
+  if (s < L6_FINISH) return l6HomePos(color, s - L6_LOOP - 1);
+  return l6FinishPos(color, i);
+}
+let l6Tokens, l6Turn, l6Roll, l6Sixes, l6Awaiting, l6Over, l6Movable, l6FinishOrder, l6Medals, l6Stats, l6Caps;
+
+function renderLudo6(resume) {
+  if (!resume) {
+    l6Tokens = {}; L6_SEATS.forEach(c => { l6Tokens[c] = [0, 0, 0, 0]; });
+    l6Turn = 0; l6Roll = null; l6Sixes = 0; l6Awaiting = false; l6Over = false; l6Movable = []; l6FinishOrder = []; l6Medals = null; l6Caps = [];
+    startTimer();
+  }
+  l6Stats = safeGet('ludo6-stats', {wins: 0, losses: 0});
+  view.innerHTML = `
+    <h2 class="game-title">Ludo — 6 Players</h2>
+    <p class="game-sub">You play Red against five AI opponents on a six-sided board. Roll, race around, and get all four tokens home. The game ends when three players have finished.</p>
+    ${aboutBlock(`
+      <ul>
+        <li>Roll a 6 to bring a token out of your yard onto your start square.</li>
+        <li>Move a token forward by the number rolled; a 6 earns another roll, three 6s in a row forfeit the turn.</li>
+        <li>Land on an opponent's token to send it back to its yard, unless it is on a safe square (a start square or a starred square).</li>
+        <li>After a full lap, turn into your own coloured home column and bring all four tokens to the centre. You need the exact roll to finish.</li>
+        <li>The first three players to bring all their tokens home take gold, silver and bronze.</li>
+        <li>If you have more than one possible move, tap the token you want to move.</li>
+      </ul>
+    `)}
+    <div class="cp-table">
+      <div class="l6-wrap"><svg class="l6-svg" id="l6Svg" viewBox="-44 -49 88 98" role="img" aria-label="Six player Ludo board"></svg></div>
+      <div class="ludo-side">
+        <div class="ludo-status" id="l6Status"></div>
+        <div class="ludo-die" id="l6Die">?</div>
+        <div class="btn-row" style="margin-top:0;">
+          <button class="btn" id="l6RollBtn">Roll Dice</button>
+          <button class="btn ghost" id="l6New">New game</button>
+        </div>
+        <div class="ludo-players" id="l6Players"></div>
+        <div class="bj-stats">
+          <div><b id="l6Wins">${l6Stats.wins}</b>Wins</div>
+          <div><b id="l6Losses">${l6Stats.losses}</b>Losses</div>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('l6RollBtn').addEventListener('click', l6HumanRoll);
+  document.getElementById('l6New').addEventListener('click', () => renderLudo6());
+  l6Render();
+  l6Say('Your turn — roll the dice.');
+}
+function l6Say(t) { const e = document.getElementById('l6Status'); if (e) e.textContent = t; }
+function l6Render() {
+  const svg = document.getElementById('l6Svg'); if (!svg) return;
+  const f = n => n.toFixed(2);
+  let h = '<polygon points="' + [0,1,2,3,4,5].map(k => { const c = l6Corner(k); return f(c[0] * 1.07) + ',' + f(c[1] * 1.07); }).join(' ') + '" fill="#0F2A20" stroke="rgba(255,255,255,.25)" stroke-width=".5"/>';
+  L6_SEATS.forEach(c => { const [x, y] = l6YardCenter(c); h += `<circle cx="${f(x)}" cy="${f(y)}" r="9.5" fill="${L6_HEX[c]}" fill-opacity=".3" stroke="${L6_HEX[c]}" stroke-width=".6"/>`; });
+  L6_PATH.forEach(([x, y], i) => {
+    const owner = L6_SEATS.find(c => L6_START[c] === i);
+    h += `<circle cx="${f(x)}" cy="${f(y)}" r="2.8" fill="${owner ? L6_HEX[owner] : '#F4EBD6'}" stroke="rgba(0,0,0,.35)" stroke-width=".25"/>`;
+    if (L6_SAFE.has(i) && !owner) h += `<text x="${f(x)}" y="${f(y + 1.3)}" font-size="3.6" text-anchor="middle" fill="#B8893A">★</text>`;
+    if (owner) h += `<text x="${f(x)}" y="${f(y + 1.3)}" font-size="3.4" text-anchor="middle" fill="#fff">★</text>`;
+  });
+  L6_SEATS.forEach(c => { for (let j = 0; j < L6_HOME; j++) { const [x, y] = l6HomePos(c, j); h += `<circle cx="${f(x)}" cy="${f(y)}" r="2.6" fill="${L6_HEX[c]}" stroke="rgba(0,0,0,.35)" stroke-width=".25"/>`; } });
+  h += '<circle cx="0" cy="0" r="4.2" fill="#C9A14A" stroke="rgba(0,0,0,.4)" stroke-width=".3"/>';
+  // tokens, grouped by cell so stacked tokens fan out a little
+  const groups = {};
+  L6_SEATS.forEach(c => l6Tokens[c].forEach((s, i) => { const [x, y] = l6Pos(c, s, i); const key = s === 0 || s === L6_FINISH ? c + i + s : f(x) + ',' + f(y); (groups[key] = groups[key] || []).push({c, i, s, x, y}); }));
+  const cur = L6_SEATS[l6Turn];
+  Object.values(groups).forEach(list => list.forEach((t, j) => {
+    const dx = (j - (list.length - 1) / 2) * 1.7, dy = (j - (list.length - 1) / 2) * -0.6;
+    const sel = cur === 'red' && l6Awaiting && t.c === 'red' && l6Movable.includes(t.i);
+    h += `<g ${sel ? `class="l6-sel" data-i="${t.i}" style="cursor:pointer"` : ''}>` +
+      (sel ? `<circle cx="${f(t.x + dx)}" cy="${f(t.y + dy)}" r="5" fill="transparent"/>` : '') +
+      `<circle cx="${f(t.x + dx)}" cy="${f(t.y + dy)}" r="2.5" fill="${L6_HEX[t.c]}" stroke="${sel ? '#FFE9A8' : '#fff'}" stroke-width="${sel ? .9 : .4}"/></g>`;
+  }));
+  svg.innerHTML = h;
+  svg.querySelectorAll('.l6-sel').forEach(g => g.addEventListener('click', () => l6Execute('red', +g.getAttribute('data-i'))));
+  const die = document.getElementById('l6Die'); if (die) die.innerHTML = pipDieHTML(l6Roll);
+  const rb = document.getElementById('l6RollBtn'); if (rb) rb.disabled = l6Over || cur !== 'red' || l6Roll !== null;
+  const pl = document.getElementById('l6Players');
+  if (pl) {
+    pl.innerHTML = '';
+    L6_SEATS.forEach(c => {
+      const done = l6Tokens[c].filter(s => s === L6_FINISH).length;
+      let label = done + '/4 home';
+      if (l6Over && l6Medals && l6Medals[c]) label = LUDO_MEDAL_LABEL[l6Medals[c]] || l6Medals[c];
+      else if (l6FinishOrder.includes(c)) label = 'Finished';
+      const row = document.createElement('div'); row.className = (c === cur && !l6Over) ? 'lp-active' : '';
+      row.innerHTML = `<span class="lp-dot" style="background:${L6_HEX[c]}"></span>${c === 'red' ? 'You (Red)' : c.charAt(0).toUpperCase() + c.slice(1)}: ${label}`;
+      pl.appendChild(row);
+    });
+  }
+  if (l6Caps.length) { matchMoment(svg.parentElement, 'Sent home!'); l6Caps = []; }
+}
+function l6Movables(color, roll) {
+  const out = [];
+  l6Tokens[color].forEach((s, i) => {
+    if (s === 0) { if (roll === 6) out.push(i); return; }
+    if (s >= L6_FINISH) return;
+    if (s + roll <= L6_FINISH) out.push(i);
+  });
+  return out;
+}
+function l6Execute(color, idx) {
+  const roll = l6Roll, s = l6Tokens[color][idx], ns = s === 0 ? 1 : s + roll;
+  l6Tokens[color][idx] = ns;
+  if (ns <= L6_LOOP) {
+    const g = (L6_START[color] + ns - 1) % L6_LOOP;
+    if (!L6_SAFE.has(g)) L6_SEATS.forEach(oc => { if (oc === color) return; l6Tokens[oc].forEach((os, oi) => { if (os >= 1 && os <= L6_LOOP && (L6_START[oc] + os - 1) % L6_LOOP === g) { l6Tokens[oc][oi] = 0; l6Caps.push(oc); } }); });
+  }
+  l6Roll = null; l6Awaiting = false; l6Movable = [];
+  if (l6Tokens[color].every(t => t === L6_FINISH) && !l6FinishOrder.includes(color)) {
+    l6FinishOrder.push(color);
+    if (l6FinishOrder.length >= 3) { l6End(); return; }
+    l6Next(); return;
+  }
+  if (roll === 6 && l6Sixes < 3) { l6Render(); l6Say(color === 'red' ? 'Rolled a 6 — roll again!' : color + ' rolled a 6 and goes again.'); if (color !== 'red') setTimeout(l6AiRoll, 600); return; }
+  l6Next();
+}
+function l6Next() {
+  if (l6Over) return;
+  l6Sixes = 0;
+  do { l6Turn = (l6Turn + 1) % 6; } while (l6FinishOrder.includes(L6_SEATS[l6Turn]));
+  l6Roll = null; l6Awaiting = false;
+  l6Render();
+  const nx = L6_SEATS[l6Turn];
+  l6Say(nx === 'red' ? 'Your turn — roll the dice.' : nx.charAt(0).toUpperCase() + nx.slice(1) + ' is rolling…');
+  if (nx !== 'red') setTimeout(l6AiRoll, 650);
+}
+function l6HumanRoll() {
+  if (l6Over || L6_SEATS[l6Turn] !== 'red' || l6Roll !== null) return;
+  const roll = 1 + Math.floor(Math.random() * 6);
+  l6Roll = roll; l6Sixes = roll === 6 ? l6Sixes + 1 : 0;
+  if (l6Sixes === 3) { l6Say('Three 6s in a row — turn forfeited!'); l6Render(); setTimeout(l6Next, 900); return; }
+  const mv = l6Movables('red', roll); l6Movable = mv;
+  if (!mv.length) { l6Say('Rolled ' + roll + ' — no legal moves.'); l6Render(); if (roll === 6) setTimeout(() => { l6Roll = null; l6Render(); }, 900); else setTimeout(l6Next, 900); return; }
+  if (mv.length === 1) { l6Say('Rolled ' + roll + '.'); l6Render(); setTimeout(() => l6Execute('red', mv[0]), 500); return; }
+  l6Awaiting = true; l6Say('Rolled ' + roll + ' — tap a token to move.'); l6Render();
+}
+function l6AiRoll() {
+  if (l6Over) return;
+  const color = L6_SEATS[l6Turn]; if (color === 'red') return;
+  const roll = 1 + Math.floor(Math.random() * 6);
+  l6Roll = roll; l6Sixes = roll === 6 ? l6Sixes + 1 : 0;
+  if (l6Sixes === 3) { l6Say('Three 6s in a row — turn forfeited!'); l6Render(); setTimeout(l6Next, 700); return; }
+  const mv = l6Movables(color, roll);
+  if (!mv.length) { l6Say(color + ' rolled ' + roll + ', no move.'); l6Render(); if (roll === 6) setTimeout(() => { l6Roll = null; l6AiRoll(); }, 600); else setTimeout(l6Next, 600); return; }
+  l6Say(color + ' rolled ' + roll + '.'); l6Render();
+  const pick = l6AiPick(color, mv, roll);
+  setTimeout(() => l6Execute(color, pick), 500);
+}
+function l6AiPick(color, mv, roll) {
+  for (const idx of mv) {
+    const s = l6Tokens[color][idx], ns = s === 0 ? 1 : s + roll;
+    if (ns <= L6_LOOP) {
+      const g = (L6_START[color] + ns - 1) % L6_LOOP;
+      if (!L6_SAFE.has(g) && L6_SEATS.some(oc => oc !== color && l6Tokens[oc].some(os => os >= 1 && os <= L6_LOOP && (L6_START[oc] + os - 1) % L6_LOOP === g))) return idx;
+    }
+  }
+  const out = mv.find(i => l6Tokens[color][i] === 0); if (out !== undefined) return out;
+  return mv.slice().sort((a, b) => l6Tokens[color][b] - l6Tokens[color][a])[0];
+}
+function l6End() {
+  l6Over = true; pauseTimer();
+  const rest = L6_SEATS.filter(c => !l6FinishOrder.includes(c)).sort((a, b) => l6Tokens[b].reduce((x, y) => x + y, 0) - l6Tokens[a].reduce((x, y) => x + y, 0));
+  const ranking = [...l6FinishOrder, ...rest];
+  const slots = ['gold', 'silver', 'bronze']; l6Medals = {};
+  ranking.forEach((c, i) => { l6Medals[c] = slots[i] || 'loser'; });
+  if (l6Medals.red === 'gold') l6Stats.wins++; else l6Stats.losses++;
+  safeSet('ludo6-stats', l6Stats);
+  l6Render();
+  if (l6Medals.red === 'gold') { celebrateWin(document.getElementById('l6Svg').parentElement); matchMoment(document.getElementById('l6Svg').parentElement, 'Champion!'); }
+  const st = document.getElementById('l6Status');
+  if (st) st.textContent = 'Game over — ' + (l6Medals.red === 'loser' ? 'you did not reach the podium.' : 'you took ' + l6Medals.red + '!');
+  document.getElementById('l6Wins').textContent = l6Stats.wins; document.getElementById('l6Losses').textContent = l6Stats.losses;
+  const entries = ranking.slice(0, 4).map(c => ({ name: c === 'red' ? 'You' : c.charAt(0).toUpperCase() + c.slice(1), you: c === 'red', detail: l6FinishOrder.includes(c) ? 'All four tokens home' : 'Still on the board' }));
+  setTimeout(() => showPodium({ game: 'Ludo — 6 Players', entries }), 900);
 }
 
 /* ---------------- JIGSAW PIECES (curved) ---------------- */
