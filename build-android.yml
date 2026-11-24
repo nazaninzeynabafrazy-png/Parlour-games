@@ -1,0 +1,123 @@
+name: Build Android app
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Collect the game files
+        run: |
+          mkdir -p apk/www
+          cp index.html manifest.webmanifest privacy.html credits.html three.min.js apk/www/
+          cp *.woff2 apk/www/
+          cp icon-192.png icon-512.png icon-maskable-512.png apk/www/
+
+      - name: Create the Android project
+        working-directory: apk
+        run: |
+          npm install
+          npx cap add android
+
+      - name: Put in the app icon
+        working-directory: apk
+        run: |
+          RES=android/app/src/main/res
+          find $RES -name 'ic_launcher*' -delete
+          for d in mdpi:48:108 hdpi:72:162 xhdpi:96:216 xxhdpi:144:324 xxxhdpi:192:432; do
+            IFS=: read n s f <<< "$d"
+            mkdir -p $RES/mipmap-$n
+            convert ../icon-512.png -resize ${s}x${s} $RES/mipmap-$n/ic_launcher.png
+            cp $RES/mipmap-$n/ic_launcher.png $RES/mipmap-$n/ic_launcher_round.png
+            convert ../icon-maskable-512.png -resize ${f}x${f} $RES/mipmap-$n/ic_launcher_foreground.png
+          done
+          mkdir -p $RES/mipmap-anydpi-v26 $RES/values
+          for nm in ic_launcher ic_launcher_round; do
+            cat > $RES/mipmap-anydpi-v26/$nm.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+              <background android:drawable="@color/launcher_bg"/>
+              <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+          </adaptive-icon>
+          XML
+          done
+          cat > $RES/values/launcher_bg.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <color name="launcher_bg">#F5EEDB</color>
+          </resources>
+          XML
+
+      - name: Signing key
+        env:
+          KS_B64: ${{ secrets.KEYSTORE_B64 }}
+          KS_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > $RUNNER_TEMP/release.jks
+            PASS="$KS_PASS"
+          else
+            PASS=$(openssl rand -hex 12)
+            keytool -genkeypair -keystore $RUNNER_TEMP/release.jks -alias cayxana -keyalg RSA -keysize 2048 -validity 10000 -storepass "$PASS" -keypass "$PASS" -dname "CN=Cayxana Oyunlari, O=Cayxana, C=IR"
+            mkdir -p keystore-out
+            cp $RUNNER_TEMP/release.jks keystore-out/release.jks
+            base64 -w0 $RUNNER_TEMP/release.jks > keystore-out/KEYSTORE_B64.txt
+            echo "$PASS" > keystore-out/KEYSTORE_PASSWORD.txt
+          fi
+          echo "KS_FILE=$RUNNER_TEMP/release.jks" >> $GITHUB_ENV
+          echo "KS_PASSWORD=$PASS" >> $GITHUB_ENV
+
+      - name: Build APK and AAB
+        working-directory: apk
+        run: |
+          npx cap sync android
+          cd android
+          sed -i -E "s/versionCode [0-9]+/versionCode ${{ github.run_number }}/; s/versionName \"[^\"]*\"/versionName \"1.0.${{ github.run_number }}\"/" app/build.gradle
+          cat >> app/build.gradle <<'GRADLE'
+          android {
+              signingConfigs {
+                  release {
+                      storeFile file(System.getenv("KS_FILE"))
+                      storePassword System.getenv("KS_PASSWORD")
+                      keyAlias "cayxana"
+                      keyPassword System.getenv("KS_PASSWORD")
+                  }
+              }
+              buildTypes {
+                  release {
+                      signingConfig signingConfigs.release
+                  }
+              }
+          }
+          GRADLE
+          chmod +x gradlew
+          ./gradlew assembleRelease bundleRelease --no-daemon
+
+      - name: Save the app files
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-files
+          path: |
+            apk/android/app/build/outputs/apk/release/*.apk
+            apk/android/app/build/outputs/bundle/release/*.aab
+          retention-days: 14
+
+      - name: Save the new signing key (download it at once, then delete it)
+        if: ${{ hashFiles('keystore-out/*') != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: KEYSTORE-KEEP-SAFE
+          path: keystore-out/
+          retention-days: 1
