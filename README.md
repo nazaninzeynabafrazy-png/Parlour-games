@@ -1,6 +1,6 @@
 # Çayxana Oyunları 
 
-Twenty-six classic and casual games in one single-file web app (English, Persian, Azerbaijani).
+Twenty-eight classic and casual games in one single-file web app (English, Persian, Azerbaijani).
 
 ## Files
 - `ads.html`, `new.html`, `head_lines.txt` — the game source.
