@@ -1,1 +1,7 @@
-apk/capacitor.config.json
+{
+  "appId": "com.chayxana.oyunlari",
+  "appName": "Çayxana Oyunları",
+  "webDir": "www",
+  "server": { "androidScheme": "https" },
+  "android": { "allowMixedContent": false }
+}
