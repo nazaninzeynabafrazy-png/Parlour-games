@@ -1,4 +1,4 @@
-# The Parlour — Game Table
+# Çayxana Oyunları 
 
 Twenty-six classic and casual games in one single-file web app (English, Persian, Azerbaijani).
 
