@@ -1337,12 +1337,12 @@
   .vc-board .ch-square.fog { filter: brightness(.42) saturate(.6); }
   .vc-board .ch-square.hill { box-shadow: inset 0 0 0 2px rgba(230,190,60,.85); }
   /* SVG chess pieces */
-  .ch-piece.ch-fig, .ch-piece.vc-piece.ch-fig.white, .ch-piece.vc-piece.ch-fig.black { border: 0 !important; width: 96%; max-width: 48px; aspect-ratio: 1; margin: auto; font-size: 0; line-height: 0; display: flex; align-items: center; justify-content: center; background: none !important; box-shadow: none !important; border-radius: 0; text-shadow: none !important; filter: none !important; }
-  .ch-fig svg { width: 100%; height: 100%; display: block; overflow: visible; }
-  .ch-fig.white { --pf: var(--player-piece, #F6F0DC); --ps: var(--player-halo, #8A6A24); }
-  .ch-fig.black { --pf: var(--opp-piece, #2B2A2E); --ps: var(--opp-halo, #C9A24B); }
-  html.pc-default .ch-board:not(.vc-board) .ch-fig.white { --pf: #D9A93A; --ps: #2E1D08; }
-  html.pc-default .ch-board:not(.vc-board) .ch-fig.black { --pf: #2B2A2E; --ps: #C9A24B; }
+  .ch-piece.ch-fig, .ch-piece.vc-piece.ch-fig.white, .ch-piece.vc-piece.ch-fig.black { border: 0 !important; width: 90%; max-width: 76px; aspect-ratio: 1; margin: auto; font-size: 0; line-height: 0; display: flex; align-items: center; justify-content: center; background: none !important; box-shadow: none !important; border-radius: 0; text-shadow: none !important; filter: none !important; }
+  .ch-fig svg { width: 100%; height: 100%; display: block; overflow: visible; filter: drop-shadow(0 1.5px 1.5px rgba(0,0,0,.45)); }
+  .ch-fig.white { --pf: var(--player-piece, #EDEDF0); --ps: var(--player-halo, #3E3E45); }
+  .ch-fig.black { --pf: var(--opp-piece, #25252A); --ps: var(--opp-halo, #8D8D96); }
+  html.pc-default .ch-board:not(.vc-board) .ch-fig.white { --pf: #EDEDF0; --ps: #3E3E45; }
+  html.pc-default .ch-board:not(.vc-board) .ch-fig.black { --pf: #25252A; --ps: #8D8D96; }
   .ch-captured-piece.ch-fig { display: inline-block; width: 22px; height: 22px; max-width: none; margin: 0 1px; vertical-align: middle; }
   .ch-piece.vc-piece.duck { background: none; box-shadow: none; font-size: clamp(16px, 3vw, 26px); }
   .ch-piece.vc-piece.black { background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--opp-piece, #5a5a63) 62%, #fff), var(--opp-piece, #1b1a1d)); color: var(--opp-piece-text, #fff); border: 1.5px solid var(--opp-halo, #c9a24b); text-shadow: 0 0 2px rgba(0,0,0,.8); }
@@ -12634,19 +12634,32 @@ const CH_ROOK_DIRS = [[-1,0],[1,0],[0,-1],[0,1]];
 const CH_SYMS = { w:{k:'\u2654',q:'\u2655',r:'\u2656',b:'\u2657',n:'\u2658',p:'\u2659'}, b:{k:'\u265A',q:'\u265B',r:'\u265C',b:'\u265D',n:'\u265E',p:'\u265F'} };
 const CH_VALUES = { q: 9, r: 5, b: 3, n: 3, p: 1, k: 0 };
 // Chess piece pictures drawn as SVG, so every phone and tablet shows the same pieces (no font or emoji problems).
+const CH_FIG_BASE = '<path d="M9 40.6c0-1.8 1.3-3.1 3.1-3.1h20.8c1.8 0 3.1 1.3 3.1 3.1z"/><rect x="11.6" y="34" width="21.8" height="4" rx="2"/>';
 const CH_FIG_SHAPES = {
-  p: '<circle cx="22.5" cy="12.5" r="5.5"/><path d="M15.5 34c0-8 2.5-11 7-14 4.5 3 7 6 7 14z"/><rect x="11.5" y="34" width="22" height="5" rx="2"/>',
-  r: '<path d="M11 39.5v-5h23v5zM14 34.5V17h17v17.5zM10.5 17.5V8h5v3.5h4V8h6v3.5h4V8h5v9.5z"/>',
-  n: '<path d="M12 39.5c0-9 3-16.5 9-21.5l-1.5-8.5 5 3c8 1 13.5 7 13.5 15.5 0 4-.5 7.5-1 11.5z"/><path d="M21.5 17.5 10.5 25l2 4 9.5-4.5z"/>',
-  b: '<path d="M22.5 5.5c-2.2 0-3.5 1.6-3.5 3.3 0 1 .5 1.9 1.2 2.5-4.2 3.2-6.7 7-6.7 11.7 0 3.2 1.6 5.8 3.2 7.5h11.6c1.6-1.7 3.2-4.3 3.2-7.5 0-4.7-2.5-8.5-6.7-11.7.7-.6 1.2-1.5 1.2-2.5 0-1.7-1.3-3.3-3.5-3.3z"/><rect x="11.5" y="34" width="22" height="5.5" rx="2"/>',
-  q: '<path d="M9.5 36 7.5 14l8.5 9 3-12 3.5 12.5L26 11l3 12 8.5-9-2 22z"/><circle cx="7.5" cy="12" r="2.4"/><circle cx="15.5" cy="9" r="2.4"/><circle cx="22.5" cy="8" r="2.4"/><circle cx="29.5" cy="9" r="2.4"/><circle cx="37.5" cy="12" r="2.4"/><rect x="10" y="35" width="25" height="5" rx="2"/>',
-  k: '<path d="M12 36c0-9 3-13 10.5-14.5C30 23 33 27 33 36z"/><rect x="20.5" y="4.5" width="4" height="13" rx="1"/><rect x="16" y="8.5" width="13" height="4" rx="1"/><rect x="12.5" y="19" width="20" height="6" rx="3"/><rect x="10.5" y="35" width="24" height="5" rx="2"/>'
+  p: '<circle cx="22.5" cy="11.6" r="5.3"/><ellipse cx="22.5" cy="18.6" rx="6.8" ry="2.1"/><path d="M16.3 34.5c.4-6.2 2.3-10.2 4.1-13.3h4.2c1.8 3.1 3.7 7.1 4.1 13.3z"/>' + CH_FIG_BASE,
+  r: '<path d="M12 18.4V8h4.5v3.3h3.4V8h5.2v3.3h3.4V8H33v10.4z"/><rect x="11" y="17" width="23" height="3.6" rx="1.2"/><path d="M14.4 20.2h16.2l1.6 14.2H12.8z"/>' + CH_FIG_BASE,
+  n: '<path d="M13.2 37.6c.1-6.6 1.6-10.2 4.6-13.6-1.7.6-3.5 1.9-4.9 3.5-1.1.1-2.9-.5-3.4-1.8-.4-1.1.3-2.3 1-3.3 1.7-2.4 3.5-4.5 4.7-7 .9-1.8 1.3-3.4 2-4.8l2.6.6L22 6.2l2.1 3.3c6.8.9 12.4 6 13 14.6.3 4.5.1 9.4-.6 14z"/><rect x="11.6" y="34" width="21.8" height="4" rx="2"/>',
+  b: '<path d="M22.5 4.8c-1.9 0-3.3 1.4-3.3 3.1 0 .9.4 1.7 1 2.3-3.6 2.7-6.1 6.4-6.1 10.6 0 2.7 1 4.8 2.7 6.5h11.4c1.7-1.7 2.7-3.8 2.7-6.5 0-4.2-2.5-7.9-6.1-10.6.6-.6 1-1.4 1-2.3 0-1.7-1.4-3.1-3.3-3.1z"/><ellipse cx="22.5" cy="27.6" rx="8" ry="2.1"/><path d="M17 28.6c.7 3 .5 4.9-.7 6.2h12.4c-1.2-1.3-1.4-3.2-.7-6.2z"/>' + CH_FIG_BASE,
+  q: '<path d="M13.5 34.5 9 14.5l6.4 6 .5-10.2 4.4 9.4 2.2-11.2 2.2 11.2 4.4-9.4.5 10.2 6.4-6-4.5 20z"/><circle cx="9" cy="12.6" r="2.2"/><circle cx="15.9" cy="8.4" r="2.2"/><circle cx="22.5" cy="6.6" r="2.2"/><circle cx="29.1" cy="8.4" r="2.2"/><circle cx="36" cy="12.6" r="2.2"/>' + CH_FIG_BASE,
+  k: '<path d="M13.2 34.5c.3-7 2.6-11.6 9.3-14 6.7 2.4 9 7 9.3 14z"/><path d="M16 18.4c-.5-2.7 2.8-4.2 6.5-4.2s7 1.5 6.5 4.2z"/><rect x="12.6" y="18" width="19.8" height="4.4" rx="2.2"/><rect x="20.7" y="3.4" width="3.6" height="11.6" rx=".9"/><rect x="17.3" y="6.4" width="10.4" height="3.6" rx=".9"/>' + CH_FIG_BASE
 };
+let chFigDefsDone = false;
+function chFigDefs() {
+  if (chFigDefsDone || !document.body) return; chFigDefsDone = true;
+  const d = document.createElement('div');
+  d.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
+  d.setAttribute('aria-hidden', 'true');
+  d.innerHTML = '<svg width="0" height="0" focusable="false"><defs><linearGradient id="chShade" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#000" stop-opacity=".5"/><stop offset=".3" stop-color="#fff" stop-opacity=".55"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".55"/></linearGradient></defs></svg>';
+  document.body.appendChild(d);
+}
 function chFigSvg(type, armyHex) {
   const t = String(type).toLowerCase(), sh = CH_FIG_SHAPES[t]; if (!sh) return '';
-  const eye = t === 'n' ? '<circle cx="25.5" cy="16.5" r="1.5" style="fill:var(--ps)"/>' : (t === 'b' ? '<path d="M22.5 13v6M19.5 16h6" style="stroke:var(--ps);stroke-width:1.6;fill:none"/>' : '');
+  chFigDefs();
+  let det = '';
+  if (t === 'n') det = '<circle cx="23.6" cy="14.4" r="1.5" style="fill:var(--ps)"/><path d="M12.2 24.6l1.6.6" style="stroke:var(--ps);stroke-width:1.4;fill:none;stroke-linecap:round"/>';
+  else if (t === 'b') det = '<path d="M24.6 12.4 20 18.6" style="stroke:var(--ps);stroke-width:1.5;fill:none;stroke-linecap:round"/>';
   const st = armyHex ? ' style="--pf:' + armyHex + ';--ps:#1b1b1b"' : '';
-  return '<svg viewBox="0 0 45 45" aria-hidden="true" focusable="false"' + st + '><g style="fill:var(--ps);stroke:var(--ps);stroke-width:3.2;stroke-linejoin:round">' + sh + '</g><g style="fill:var(--pf)">' + sh + '</g>' + eye + '</svg>';
+  return '<svg viewBox="0 0 45 45" aria-hidden="true" focusable="false"' + st + '><g style="fill:var(--ps);stroke:var(--ps);stroke-width:2.8;stroke-linejoin:round">' + sh + '</g><g style="fill:var(--pf)">' + sh + '</g><g style="fill:url(#chShade)">' + sh + '</g>' + det + '</svg>';
 }
 function chSetFig(el, color, type, armyHex) {
   el.classList.add('ch-fig'); el.dataset.pn = ({p:'pawn',n:'knight',b:'bishop',r:'rook',q:'queen',k:'king'})[String(type).toLowerCase()] || 'piece';
