@@ -1,4 +1,4 @@
-name: github/workflows/build-android.yml
+name: github
 
 on:
   workflow_dispatch:
