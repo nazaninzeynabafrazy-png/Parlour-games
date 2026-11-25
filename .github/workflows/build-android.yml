@@ -108,6 +108,18 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleRelease bundleRelease --no-daemon
 
+      - name: Make the Bazaar .bin file
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p bazaar/tool bazaar/out
+          gh release download --repo cafebazaar/bundle-signer --pattern '*.jar' --dir bazaar/tool
+          JAR=$(ls bazaar/tool/bundlesigner-*.jar | grep -v -E 'sources|javadoc' | head -1)
+          AAB=$(ls apk/android/app/build/outputs/bundle/release/*.aab | head -1)
+          java -jar "$JAR" genbin -v --bundle "$AAB" --bin bazaar/out --v2-signing-enabled true --v3-signing-enabled false --ks "$KS_FILE" --ks-key-alias cayxana --ks-pass env:KS_PASSWORD --key-pass env:KS_PASSWORD
+          ls -la bazaar/out
+
       - name: Save the app files
         uses: actions/upload-artifact@v4
         with:
@@ -115,6 +127,7 @@ jobs:
           path: |
             apk/android/app/build/outputs/apk/release/*.apk
             apk/android/app/build/outputs/bundle/release/*.aab
+            bazaar/out/*
           retention-days: 14
 
       - name: Save the new signing key (download it at once, then delete it)
@@ -124,3 +137,4 @@ jobs:
           name: KEYSTORE-KEEP-SAFE
           path: keystore-out/
           retention-days: 1
+          
