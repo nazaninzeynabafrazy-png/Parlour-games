@@ -13634,7 +13634,7 @@ function vcFlag(color) {
   const game = vcGame;
   if (!game || game.over) return;
   game.over = true; pauseTimer();
-  if (color === 'b') { vcStats.wins++; vcUpdateStatus('Black ran out of time — you win!'); }
+  if (color === 'b') { vcStats.wins++; awardBadges('chess-' + vcGame.variant, vcStats.wins); vcUpdateStatus('Black ran out of time — you win!'); }
   else { vcStats.losses++; vcUpdateStatus('You ran out of time — Black wins.'); }
   safeSet('vc-stats-' + game.variant, vcStats);
   vcAutosave(); vcUpdateStatsDom(); vcRenderGameReview();
@@ -13662,7 +13662,7 @@ function chStartStandard() {
 
 
 // ===== Chess 360° view: tilt the board into 3D and orbit around it =====
-const ch360 = { on: false, spin: 0, tilt: 48, auto: false, raf: 0, last: 0 };
+const ch360 = { on: false, /* 360 view removed from standard chess */ spin: 0, tilt: 48, auto: false, raf: 0, last: 0 };
 function ch360Apply() {
   const board = document.getElementById('chBoard');
   if (!board) return;
@@ -13750,14 +13750,6 @@ function chRenderBoardScreen(resume) {
         ${is2p ? '' : '<div class="coach-box" id="chCoachNote" style="display:none;"></div>'}
         ${is2p ? '' : '<div class="coach-box hint-box" id="chHintNote" style="display:none;"></div>'}
         <div class="ch-history-bar" id="chHistoryBar" style="display:none;"></div>
-        <div class="ch-360" id="ch360Bar">
-          <button class="btn ghost" id="ch360Btn" type="button" aria-pressed="false">View 360\u00B0</button>
-          <div class="ch-360-ctl" id="ch360Ctl" hidden>
-            <label>Rotate <input type="range" id="ch360Spin" min="0" max="360" step="1" value="0" aria-label="Rotate the board"></label>
-            <label>Tilt <input type="range" id="ch360Tilt" min="0" max="70" step="1" value="48" aria-label="Tilt the board"></label>
-            <div class="btn-row" style="margin:6px 0 0;"><button class="btn ghost" id="ch360Auto" type="button">Auto-spin</button><button class="btn ghost" id="ch360Reset" type="button">Reset</button></div>
-          </div>
-        </div>
         <div class="btn-row" style="margin-top:0;">
           ${is2p ? '' : '<button class="btn ghost" id="chHintBtn">Hint</button>'}
           <button class="btn ghost" id="chChangeSettings">Change settings</button>
@@ -14843,7 +14835,7 @@ function vcApplyMove(game, move) {
   if (piece.type === 'P') {
     const lastRow = piece.color === 'w' ? 0 : game.rows - 1;
     if (tr === lastRow) {
-      if (game.cfg.promotion === 'queen') piece.type = 'Q';
+      if (game.cfg.promotion === 'queen') piece.type = (move.promoteTo && 'QRBN'.indexOf(move.promoteTo) >= 0) ? move.promoteTo : 'Q';
       else if (game.cfg.promotion === 'rook') piece.type = 'R';
       else if (VC_PIECES[game.cfg.promotion]) piece.type = game.cfg.promotion;
       else piece.type = piece.promo || 'W';
@@ -14939,8 +14931,101 @@ function vcRulesHtml(variantId) {
   return `<p>Rule set: <b>${v.label}</b>.</p>${v.rules || `<p>${v.sub}.</p>`}<p>You play White and move first. ${CHESS_VARIANTS[variantId].noCheckRules ? '' : 'Checkmate wins; stalemate is a draw.'}</p>`;
 }
 
+let vcLog = { variant: null, moves: [], captured: { w: [], b: [] } };
+let vcViewIndex = null, vcPlaying = false, vcPlayTimer = null;
+function vcResetLog(variant) { vcLog = { variant: variant, moves: [], captured: { w: [], b: [] } }; vcViewIndex = null; vcStopPlay(); }
 function vcAutosave() {
-  if (vcGame) safeSet('ch-variant-save', vcGame);
+  if (vcGame) { safeSet('ch-variant-save', vcGame); safeSet('ch-variant-log', vcLog); }
+}
+// ---- move list, captured pieces and step-through playback for the variant boards (same as Standard Chess) ----
+function vcEncodeBoard(game) { return game.board.map(row => row.map(p => p ? (p.type + p.color + (p.army || '')) : '')); }
+function vcDecodeBoard(snap) { return snap.map(row => row.map(t => t ? { type: t[0], color: t[1], army: t[2] || undefined } : null)); }
+function vcNotation(game, move, originalType, isCapture, movedPiece) {
+  if (move.citadel) return 'K\u2192citadel';
+  if (move.castleRook || move.kingTo) {
+    const toC = move.kingTo ? move.kingTo[1] : move.to[1];
+    return toC > move.from[1] ? 'O-O' : 'O-O-O';
+  }
+  const dest = vcSquareName(game, move.to[0], move.to[1]);
+  let n;
+  if (originalType === 'P') n = (isCapture ? String.fromCharCode(97 + move.from[1]) + 'x' : '') + dest;
+  else { const g = (VC_PIECES[originalType] && VC_PIECES[originalType].glyph) || '?'; n = g + (isCapture ? 'x' : '') + dest; }
+  if (originalType === 'P' && movedPiece && movedPiece.type !== 'P') n += '=' + ((VC_PIECES[movedPiece.type] && VC_PIECES[movedPiece.type].glyph) || '?');
+  return n;
+}
+function vcLogMove(game, color, notation, capturedPiece, army) {
+  vcStopPlay(); vcViewIndex = null;
+  if (capturedPiece && capturedPiece.type !== 'X' && vcLog.captured[color]) vcLog.captured[color].push(capturedPiece.type);
+  vcLog.moves.push({ color: color, army: army || null, notation: notation, snap: vcEncodeBoard(game) });
+  vcRenderMoveLog(); vcRenderCaptured();
+}
+function vcRenderCaptured() {
+  const wRow = document.getElementById('vcCapturedByWhite'), bRow = document.getElementById('vcCapturedByBlack');
+  if (!wRow || !bRow) return;
+  const val = t => (VC_PIECES[t] ? VC_PIECES[t].value : 0);
+  const fill = (row, list, pieceColor, lead) => {
+    row.innerHTML = '';
+    if (!list.length) { const e = document.createElement('span'); e.className = 'ch-captured-empty'; e.textContent = '\u2014'; row.appendChild(e); return; }
+    [...list].sort((a, b) => val(b) - val(a)).forEach(t => {
+      const sym = document.createElement('span'); sym.className = 'ch-captured-piece';
+      if ('KQRBNP'.indexOf(t) >= 0 && vcGame && vcGame.cfg.boardKind !== 'tamerlane') { sym.innerHTML = chFigSvg(t); sym.classList.add('ch-fig', pieceColor === 'w' ? 'white' : 'black'); }
+      else { sym.textContent = (VC_PIECES[t] && VC_PIECES[t].glyph) || '?'; sym.style.fontSize = '13px'; sym.style.margin = '0 2px'; }
+      row.appendChild(sym);
+    });
+    if (lead > 0) { const b = document.createElement('span'); b.className = 'ch-captured-material'; b.textContent = '+' + Math.round(lead * 10) / 10; row.appendChild(b); }
+  };
+  const sum = l => l.reduce((a, t) => a + val(t), 0);
+  const diff = sum(vcLog.captured.w) - sum(vcLog.captured.b);
+  fill(wRow, vcLog.captured.w, 'b', diff);
+  fill(bRow, vcLog.captured.b, 'w', -diff);
+}
+function vcRenderMoveLog() {
+  const el = document.getElementById('vcMoveLog');
+  if (!el) return;
+  el.innerHTML = '';
+  const log = vcLog.moves;
+  if (!log.length) { el.innerHTML = '<span class="ch-move-empty">No moves yet.</span>'; vcRenderPlaybackBar(); return; }
+  const per = (vcGame && vcGame.cfg.fourArmy) ? 4 : 2;
+  for (let i = 0; i < log.length; i += per) {
+    const row = document.createElement('div'); row.className = 'ch-move-row';
+    const num = document.createElement('span'); num.className = 'ch-move-num'; num.textContent = (i / per + 1) + '.'; row.appendChild(num);
+    for (let k = 0; k < per; k++) {
+      const idx = i + k, span = document.createElement('span');
+      span.className = k % 2 === 0 ? 'ch-move-w' : 'ch-move-b';
+      if (log[idx]) {
+        span.textContent = log[idx].notation; span.classList.add('ch-move-click');
+        if (vcViewIndex === idx) span.classList.add('active');
+        span.addEventListener('click', () => { vcStopPlay(); vcShowPos(idx); });
+      }
+      row.appendChild(span);
+    }
+    el.appendChild(row);
+  }
+  el.scrollTop = el.scrollHeight;
+  vcRenderPlaybackBar();
+}
+function vcRenderPlaybackBar() {
+  const bar = document.getElementById('vcPlaybackBar'); if (!bar) return;
+  if (!vcLog.moves.length) { bar.style.display = 'none'; return; }
+  bar.style.display = '';
+  const pb = document.getElementById('vcPbPlay');
+  if (pb) { pb.textContent = vcPlaying ? '\u23F8' : '\u25B6'; pb.classList.toggle('playing', vcPlaying); }
+  const live = vcViewIndex === null, start = !live && vcViewIndex === 0;
+  const set = (id, d) => { const b = document.getElementById(id); if (b) b.disabled = d; };
+  set('vcPbFirst', start); set('vcPbPrev', start); set('vcPbNext', live); set('vcPbLast', live);
+}
+function vcStopPlay() { vcPlaying = false; if (vcPlayTimer) { clearInterval(vcPlayTimer); vcPlayTimer = null; } }
+function vcShowPos(idx) { vcViewIndex = idx; vcDrawBoard(); vcRenderMoveLog(); }
+function vcLive() { vcStopPlay(); vcViewIndex = null; vcDrawBoard(); vcRenderMoveLog(); }
+function vcStepFirst() { if (!vcLog.moves.length) return; vcStopPlay(); vcShowPos(0); }
+function vcStepPrev() { if (!vcLog.moves.length) return; vcStopPlay(); if (vcViewIndex === null) vcShowPos(vcLog.moves.length - 1); else if (vcViewIndex > 0) vcShowPos(vcViewIndex - 1); }
+function vcStepNext() { if (!vcLog.moves.length || vcViewIndex === null) return; vcStopPlay(); if (vcViewIndex < vcLog.moves.length - 1) vcShowPos(vcViewIndex + 1); else vcLive(); }
+function vcTogglePlay() {
+  if (vcPlaying) { vcStopPlay(); vcRenderPlaybackBar(); return; }
+  if (!vcLog.moves.length) return;
+  vcPlaying = true;
+  if (vcViewIndex === null) vcShowPos(0); else vcRenderPlaybackBar();
+  vcPlayTimer = setInterval(() => { if (vcViewIndex === null || vcViewIndex >= vcLog.moves.length - 1) { vcLive(); } else vcShowPos(vcViewIndex + 1); }, 900);
 }
 
 function vcLoadSave() {
@@ -14950,11 +15035,15 @@ function vcLoadSave() {
   if (saved.cfg.boardKind === 'tamerlane') saved.citadels = saved.cfg.citadelDraw ? {w: [1, -1], b: [8, saved.cfg.cols]} : null;
   vcGame = saved;
   vcSelected = null;
+  const lg = safeGet('ch-variant-log', null);
+  if (lg && lg.variant === saved.variant && Array.isArray(lg.moves) && lg.captured) { vcLog = lg; vcViewIndex = null; vcStopPlay(); }
+  else vcResetLog(saved.variant);
   return true;
 }
 
 function vcStartGame(variantId) {
   vcGame = vcBuildGame(variantId);
+  vcResetLog(variantId);
   vcSelected = null;
   vcHintMove = null;
   vcMoveAnalysis = [];
@@ -14992,14 +15081,38 @@ function vcRenderBoard() {
           <div><b id="vcLosses">${vcStats.losses}</b>Losses</div>
           <div><b id="vcDraws">${vcStats.draws}</b>Draws</div>
         </div>
+        ${badgeStickersHTML('chess-' + game.variant)}
         <div class="ch-review" id="vcGameReview" style="display:none;"></div>
       </div>
     </div>
+    <div class="ch-move-log-panel">
+      <div class="ch-move-log-title">Move list</div>
+      <div class="ch-captured-row">
+        <div class="ch-captured-side" id="vcCapturedByWhite"></div>
+        <div class="ch-captured-side" id="vcCapturedByBlack"></div>
+      </div>
+      <div class="ch-playback-bar" id="vcPlaybackBar" style="display:none;">
+        <button class="ch-pb-btn" id="vcPbFirst" type="button" title="First move">\u23EE</button>
+        <button class="ch-pb-btn" id="vcPbPrev" type="button" title="Previous move">\u25C0</button>
+        <button class="ch-pb-btn" id="vcPbPlay" type="button" title="Play through the game">\u25B6</button>
+        <button class="ch-pb-btn" id="vcPbNext" type="button" title="Next move">\u25B7</button>
+        <button class="ch-pb-btn" id="vcPbLast" type="button" title="Current position">\u23ED</button>
+      </div>
+      <div class="ch-move-log" id="vcMoveLog"><span class="ch-move-empty">No moves yet.</span></div>
+    </div>
   `;
   document.getElementById('vcChangeSettings').addEventListener('click', () => chStartSetup());
-  document.getElementById('vcNew').addEventListener('click', () => { safeSet('ch-variant-save', null); vcGame = null; chState = null; renderChess(); });
+  document.getElementById('vcNew').addEventListener('click', () => { safeSet('ch-variant-save', null); safeSet('ch-variant-log', null); vcGame = null; chState = null; renderChess(); });
   document.getElementById('vcHintBtn').addEventListener('click', vcShowHint);
+  vcStopPlay(); vcViewIndex = null;
+  document.getElementById('vcPbFirst').addEventListener('click', vcStepFirst);
+  document.getElementById('vcPbPrev').addEventListener('click', vcStepPrev);
+  document.getElementById('vcPbPlay').addEventListener('click', vcTogglePlay);
+  document.getElementById('vcPbNext').addEventListener('click', vcStepNext);
+  document.getElementById('vcPbLast').addEventListener('click', vcLive);
   vcDrawBoard();
+  vcRenderMoveLog();
+  vcRenderCaptured();
   vcUpdateStatus();
   cclkRender();
   if (vcGame.over) vcRenderGameReview();
@@ -15024,12 +15137,14 @@ function vcDrawBoard() {
   const boardEl = document.getElementById('vcBoard');
   if (!boardEl) return;
   boardEl.innerHTML = '';
-  const legal = (!game.over && vcHumanTurn(game)) ? vcLegalMoves(game, 'w').concat(vcCitadelMoves(game, 'w')) : [];
+  const viewing = vcViewIndex !== null && vcLog.moves[vcViewIndex];
+  const bd = viewing ? vcDecodeBoard(vcLog.moves[vcViewIndex].snap) : game.board;
+  const legal = (!game.over && vcHumanTurn(game) && !viewing) ? vcLegalMoves(game, 'w').concat(vcCitadelMoves(game, 'w')) : [];
   const selMoves = vcSelected ? legal.filter(m => m.from[0] === vcSelected[0] && m.from[1] === vcSelected[1]) : [];
   const targets = new Set(selMoves.map(m => m.to[0] + ',' + m.to[1]));
   const wide = !!game.citadels;
-  const fogVis = (game.cfg.fog && !game.over) ? vcFogVisible(game) : null;
-  const duckPick = !!(game.duckPending === 'w' && !game.over);
+  const fogVis = (game.cfg.fog && !game.over && !viewing) ? vcFogVisible(game) : null;
+  const duckPick = !!(game.duckPending === 'w' && !game.over && !viewing);
   for (let r = 0; r < game.rows; r++) {
     for (let c = wide ? -1 : 0; c < game.cols + (wide ? 1 : 0); c++) {
       if (c < 0 || c >= game.cols) {            // the two edge columns only hold the citadels
@@ -15049,14 +15164,14 @@ function vcDrawBoard() {
       sq.className = 'ch-square ' + ((r + c) % 2 === 0 ? 'light' : 'dark');
       if (vcSelected && vcSelected[0] === r && vcSelected[1] === c) sq.classList.add('selected');
       if (targets.has(r + ',' + c)) sq.classList.add('move-highlight');
-      if (duckPick && !game.board[r][c]) sq.classList.add('move-highlight');
+      if (duckPick && !bd[r][c]) sq.classList.add('move-highlight');
       const hidden = !!(fogVis && !fogVis.has(r + ',' + c));
       if (hidden) sq.classList.add('fog');
       if (game.cfg.hill && vcOnHill(game, r, c)) sq.classList.add('hill');
       if (vcHintMove && ((vcHintMove.from[0] === r && vcHintMove.from[1] === c) || (vcHintMove.to[0] === r && vcHintMove.to[1] === c))) {
         sq.classList.add('hint-square');
       }
-      const piece = game.board[r][c];
+      const piece = bd[r][c];
       if (piece && !(hidden && piece.color === 'b')) {
         const pEl = document.createElement('div');
         pEl.className = 'ch-piece vc-piece ' + (piece.color === 'w' ? 'white' : (piece.color === 'd' ? 'duck' : 'black'));
@@ -15079,6 +15194,7 @@ function vcPlaceDuck(game, r, c, color) {
   game.duckPending = null;
   game.turn = color === 'w' ? 'b' : 'w';
   if (color === 'w') {
+    { const pn = game.pendingNote || { note: '\u2014', cap: null }; vcLogMove(game, 'w', pn.note + ' \u{1F986}' + vcSquareName(game, r, c), pn.cap, pn.army); game.pendingNote = null; }
     cclkMoveMade('w');
     vcAutosave();
     vcDrawBoard();
@@ -15111,7 +15227,7 @@ function vcAiPlaceDuck(game) {
 }
 function vcHandleClick(r, c) {
   const game = vcGame;
-  if (!game || game.over || !vcHumanTurn(game)) return;
+  if (!game || game.over || !vcHumanTurn(game) || vcViewIndex !== null || chPromoPending) return;
   if (game.duckPending === 'w') {   // Duck Chess: second half of the turn
     if (game.board[r] && game.board[r][c] === null) vcPlaceDuck(game, r, c, 'w');
     return;
@@ -15120,7 +15236,16 @@ function vcHandleClick(r, c) {
   const piece = game.board[r] && game.board[r][c];
   if (vcSelected) {
     const mv = legal.find(m => m.from[0] === vcSelected[0] && m.from[1] === vcSelected[1] && m.to[0] === r && m.to[1] === c);
-    if (mv) { vcSelected = null; vcExecute(mv); return; }
+    if (mv) {
+      const mp = game.board[vcSelected[0]][vcSelected[1]];
+      vcSelected = null;
+      if (mp && mp.type === 'P' && mp.color === 'w' && game.cfg.promotion === 'queen' && mv.to[0] === 0) {
+        vcDrawBoard();
+        chAskPromotion('w', (t) => { mv.promoteTo = t.toUpperCase(); vcExecute(mv); }, () => { vcDrawBoard(); });
+        return;
+      }
+      vcExecute(mv); return;
+    }
   }
   if (piece && piece.color === 'w' && (!game.cfg.fourArmy || piece.army === 'r')) { vcSelected = [r, c]; vcDrawBoard(); }
   else { vcSelected = null; vcDrawBoard(); }
@@ -15247,7 +15372,10 @@ function vcExecute(move) {
   const capturedSquare = move.enPassantCapture || (capturedPiece ? move.to : null);
   const analysisEntry = vcAnalyzePlayerMove(game, move);
   vcHintMove = null;
+  const exPiece = game.board[move.from[0]][move.from[1]], exType = exPiece ? exPiece.type : 'P', exArmy = exPiece ? exPiece.army : null;
   vcApplyMove(game, move);
+  { const note = vcNotation(game, move, exType, !!capturedPiece, exPiece) + ((!game.cfg.noCheck && vcKingsAttacked(game, 'b')) ? '+' : '');
+    if (game.cfg.duck) game.pendingNote = { note: note, cap: capturedPiece, army: exArmy }; else vcLogMove(game, 'w', note, capturedPiece, exArmy); }
   if (!game.cfg.duck) cclkMoveMade('w');
   if (analysisEntry) vcMoveAnalysis.push(analysisEntry);
   if (game.cfg.duck && vcKingCaptured(game) === null) { game.turn = 'w'; game.duckPending = 'w'; }
@@ -15314,6 +15442,8 @@ function vcAiTurn() {
   const capturedSquare = chosen.enPassantCapture || (capturedPiece ? chosen.to : null);
   vcApplyMove(game, chosen);
   if (game.cfg.duck && vcKingCaptured(game) === null) vcAiPlaceDuck(game);
+  { const aNote = vcNotation(game, chosen, originalType, !!capturedPiece, piece) + (game.cfg.duck && game.duck ? ' \u{1F986}' + vcSquareName(game, game.duck[0], game.duck[1]) : '') + ((!game.cfg.noCheck && vcKingsAttacked(game, 'w')) ? '+' : '');
+    vcLogMove(game, aiCol, aNote, capturedPiece, aiArmy); }
   if (!game.cfg.fourArmy) cclkMoveMade('b');
   const inCheck = vcKingsAttacked(game, 'w');
   const explanation = game.cfg.fourArmy
@@ -15359,7 +15489,7 @@ function vcCheckGameOver() {
     const winner = kc ? (kc === 'b' ? 'w' : 'b') : vcHillWinner(game);
     game.over = true;
     pauseTimer(); cclkStop();
-    if (winner === 'w') { vcStats.wins++; vcUpdateStatus(kc ? 'You captured the king \u2014 you win!' : 'Your king reached the hill \u2014 you win!'); }
+    if (winner === 'w') { vcStats.wins++; awardBadges('chess-' + vcGame.variant, vcStats.wins); vcUpdateStatus(kc ? 'You captured the king \u2014 you win!' : 'Your king reached the hill \u2014 you win!'); }
     else { vcStats.losses++; vcUpdateStatus(kc ? 'Your king was captured \u2014 black wins.' : 'Black\u2019s king reached the hill \u2014 black wins.'); }
     safeSet('vc-stats-' + game.variant, vcStats);
     vcAutosave(); vcDrawBoard(); vcUpdateStatsDom(); vcRenderGameReview();
@@ -15384,7 +15514,7 @@ function vcCheckGameOver() {
       vcStats.losses++; vcUpdateStatus('All your pieces were captured \u2014 black wins.');
     } else if (inCheck) {
       const winner = nextColor === 'w' ? 'b' : 'w';
-      if (winner === 'w') { vcStats.wins++; vcUpdateStatus('Checkmate \u2014 you win!'); }
+      if (winner === 'w') { vcStats.wins++; awardBadges('chess-' + vcGame.variant, vcStats.wins); vcUpdateStatus('Checkmate \u2014 you win!'); }
       else { vcStats.losses++; vcUpdateStatus('Checkmate \u2014 black wins.'); }
     } else {
       vcStats.draws++;
