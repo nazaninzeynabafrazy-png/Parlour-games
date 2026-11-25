@@ -2,7 +2,7 @@
 
 Twenty-eight classic and casual games in one single-file web app, in English, Persian and Azerbaijani. Free to play.
 
-Play it here: https://parlour-play.nazaninzeynabafrazy.workers.dev
+Play it here: https://play.chayxana-oyunlari.workers.dev
 
 ## Files
 - `index.html` — the live game (one file).

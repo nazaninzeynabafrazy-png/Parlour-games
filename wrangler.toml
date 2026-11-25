@@ -1,4 +1,4 @@
-name = "parlour-play"
+name = "play"
 main = "worker.js"
 compatibility_date = "2025-01-01"
 
