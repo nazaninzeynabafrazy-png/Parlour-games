@@ -13570,7 +13570,7 @@ function chRenderSetupModeRow() {
   const wrap = document.getElementById('chModeRowWrap');
   const diffWrap = document.getElementById('chDifficultyWrap');
   if (!wrap) return;
-  if (chVariant !== 'standard' && !GC_BOARDS[chVariant]) {
+  if (chVariant !== 'standard' && !GC_BOARDS[chVariant] && VC_VARIANT_CFG[chVariant] && VC_VARIANT_CFG[chVariant].fourArmy) {
     wrap.innerHTML = '';
     if (diffWrap) diffWrap.style.display = '';
     chRenderSideChooser();
@@ -13607,7 +13607,7 @@ function chRenderSetupModeRow() {
 function chRenderSideChooser() {
   const wrap = document.getElementById('chSideWrap');
   if (!wrap) return;
-  if ((chVariant !== 'standard' && !GC_BOARDS[chVariant]) || chMode === '2p') { wrap.innerHTML = ''; return; }
+  if ((chVariant !== 'standard' && !GC_BOARDS[chVariant] && VC_VARIANT_CFG[chVariant] && VC_VARIANT_CFG[chVariant].fourArmy) || chMode === '2p') { wrap.innerHTML = ''; return; }
   wrap.innerHTML = `
     <p style="margin:14px 0 8px; color:var(--cream-dim); font-size:13px;">Choose your side \u2014 White moves first</p>
     <div class="ch-side-pick" id="chSidePick" role="radiogroup" aria-label="Choose your side">
@@ -13747,9 +13747,8 @@ function vcFlag(color) {
   const game = vcGame;
   if (!game || game.over) return;
   game.over = true; pauseTimer();
-  if (color === 'b') { vcStats.wins++; awardBadges('chess-' + vcGame.variant, vcStats.wins); vcUpdateStatus('Black ran out of time — you win!'); }
-  else { vcStats.losses++; vcUpdateStatus('You ran out of time — Black wins.'); }
-  safeSet('vc-stats-' + game.variant, vcStats);
+  const fw = vcOpp(color);
+  vcRecord(game, fw); vcUpdateStatus(vcWinText(game, fw, 'time'));
   vcAutosave(); vcUpdateStatsDom(); vcRenderGameReview();
 }
 
@@ -14782,7 +14781,36 @@ function vcBuildFourBoard() {
   }
   return board;
 }
-function vcHumanTurn(game) { return game.cfg.fourArmy ? game.army === 'r' : game.turn === 'w'; }
+function vcMe(game) { return game.cfg.fourArmy ? 'w' : (game.twoP ? game.turn : (game.human || 'w')); }
+function vcHumanTurn(game) { return game.cfg.fourArmy ? game.army === 'r' : (game.twoP ? true : game.turn === (game.human || 'w')); }
+function vcOpp(c) { return c === 'w' ? 'b' : 'w'; }
+function vcCName(c) { return c === 'w' ? 'White' : 'Black'; }
+// Records a finished game in the win/loss/draw counters (not in 2-player mode). winner: 'w' | 'b' | null for a draw.
+function vcRecord(game, winner) {
+  if (game.twoP) return false;
+  const me = vcMe(game);
+  if (winner === null) vcStats.draws++;
+  else if (winner === me) { vcStats.wins++; awardBadges('chess-' + game.variant, vcStats.wins); }
+  else vcStats.losses++;
+  safeSet('vc-stats-' + game.variant, vcStats);
+  return winner === me;
+}
+function vcWinText(game, winner, how) {
+  const WN = vcCName(winner);
+  if (game.twoP) {
+    if (how === 'mate') return 'Checkmate \u2014 ' + WN + ' wins.';
+    if (how === 'king') return WN + ' captured the king \u2014 ' + WN + ' wins.';
+    if (how === 'hill') return WN + '\u2019s king reached the hill \u2014 ' + WN + ' wins.';
+    if (how === 'horde') return 'All the White pieces were captured \u2014 Black wins.';
+    return vcCName(vcOpp(winner)) + ' ran out of time \u2014 ' + WN + ' wins.';
+  }
+  const you = winner === vcMe(game);
+  if (how === 'mate') return you ? 'Checkmate \u2014 you win!' : 'Checkmate \u2014 ' + WN + ' wins.';
+  if (how === 'king') return you ? 'You captured the king \u2014 you win!' : 'Your king was captured \u2014 ' + WN + ' wins.';
+  if (how === 'hill') return you ? 'Your king reached the hill \u2014 you win!' : WN + '\u2019s king reached the hill \u2014 ' + WN + ' wins.';
+  if (how === 'horde') return you ? 'You captured every White piece \u2014 you win!' : 'All your pieces were captured \u2014 ' + WN + ' wins.';
+  return you ? vcCName(vcOpp(winner)) + ' ran out of time \u2014 you win!' : 'You ran out of time \u2014 ' + WN + ' wins.';
+}
 function vcBuildGame(variantId) {
   const cfg = VC_VARIANT_CFG[variantId];
   const boardKind = cfg.boardKind;
@@ -15066,13 +15094,14 @@ function vcScore(game) {
     sc += vcHillScore(game);
     // if White could step onto the hill next move, that is nearly as bad for Black as losing the king
     if (game.turn === 'w' && vcLegalMoves(game, 'w').some(m => { const q = game.board[m.from[0]][m.from[1]]; return q && q.type === 'K' && vcOnHill(game, m.to[0], m.to[1]); })) sc += 500;
+    if (game.turn === 'b' && vcLegalMoves(game, 'b').some(m => { const q = game.board[m.from[0]][m.from[1]]; return q && q.type === 'K' && vcOnHill(game, m.to[0], m.to[1]); })) sc -= 500;
   }
   return sc;
 }
 
 function vcRulesHtml(variantId) {
   const v = CHESS_VARIANTS[variantId];
-  return `<p>Rule set: <b>${v.label}</b>.</p>${v.rules || `<p>${v.sub}.</p>`}<p>You play White and move first. ${CHESS_VARIANTS[variantId].noCheckRules ? '' : 'Checkmate wins; stalemate is a draw.'}</p>`;
+  return `<p>Rule set: <b>${v.label}</b>.</p>${v.rules || `<p>${v.sub}.</p>`}<p>${VC_VARIANT_CFG[variantId].fourArmy ? 'Red moves first.' : 'White moves first.'} ${CHESS_VARIANTS[variantId].noCheckRules ? '' : 'Checkmate wins; stalemate is a draw.'}</p>`;
 }
 
 function vcSaveKey(id) { return 'ch-variant-save-' + id; }
@@ -15198,6 +15227,10 @@ function vcLoadSave(variantId) {
 
 function vcStartGame(variantId) {
   vcGame = vcBuildGame(variantId);
+  if (!vcGame.cfg.fourArmy) {
+    if (chMode === '2p') { vcGame.twoP = true; vcGame.human = 'w'; }
+    else vcGame.human = chSideChoice === 'random' ? (Math.random() < 0.5 ? 'w' : 'b') : (chSideChoice === 'b' ? 'b' : 'w');
+  }
   vcResetLog(variantId);
   vcSelected = null;
   vcHintMove = null;
@@ -15206,18 +15239,25 @@ function vcStartGame(variantId) {
   vcAutosave();
   cclkStart(vcFlag);
   vcRenderBoard();
-  if (vcGame.turn === 'b') {
-    vcUpdateStatus('Black moves first \u2014 thinking\u2026');
-    setTimeout(vcAiTurn, 600);
-  }
 }
 
+function vcSubText(game) {
+  const c = game.cfg;
+  if (c.fourArmy) return "You play Red (bottom left); the computer plays your partner Yellow against Blue and Green. Turns go Red \u2192 Blue \u2192 Yellow \u2192 Green.";
+  const who = game.twoP ? 'Two players share this device \u2014 White starts, then pass it to Black.' : 'You play ' + (game.human === 'b' ? 'Black' : 'White') + '.';
+  let goal = '';
+  if (c.horde) goal = ' White commands the horde of pawns; Black must capture them all, White must checkmate the Black king.';
+  else if (c.duck) goal = ' After each move, move the duck to an empty square \u2014 capture the king to win.';
+  else if (c.fog) goal = ' You only see what your pieces can reach \u2014 capture the king to win.';
+  else if (c.hill) goal = ' Walk your king to the centre squares to win.';
+  return who + goal + (game.cast && c.boardKind === '960' ? ' Start position: ' + game.cast.back + '.' : '');
+}
 function vcRenderBoard() {
   const game = vcGame;
   vcStats = safeGet('vc-stats-' + game.variant, {wins: 0, losses: 0, draws: 0});
   view.innerHTML = `
     <h2 class="game-title">Chess \u2014 ${CHESS_VARIANTS[game.variant].label}</h2>
-    <p class="game-sub">${game.cfg.horde ? "You play the horde (White) \u2014 checkmate the Black king." : (game.cfg.fourArmy ? "You play Red (bottom left); the computer plays your partner Yellow against Blue and Green. Turns go Red \u2192 Blue \u2192 Yellow \u2192 Green." : game.cfg.duck ? "You play White. After each move, move the duck to an empty square \u2014 capture the king to win." : (game.cfg.fog ? "You play White. You only see what your pieces can reach \u2014 capture the king to win." : (game.cfg.hill ? "You play White. Walk your king to the centre squares to win." : "You play White.")))}${game.cast && game.cfg.boardKind === '960' ? " Start position: " + game.cast.back + "." : ""}</p>
+    <p class="game-sub">${vcSubText(game)}</p>
     ${aboutBlock(vcRulesHtml(game.variant))}
     <div class="ck-wrap">
       <div class="ch-board vc-board" id="vcBoard" style="grid-template-columns:repeat(${game.cols + (game.citadels ? 2 : 0)},1fr); grid-template-rows:repeat(${game.rows},1fr);"></div>
@@ -15231,7 +15271,7 @@ function vcRenderBoard() {
           <button class="btn ghost" id="vcChangeSettings">Change settings</button>
           <button class="btn ghost" id="vcNew">New game</button>
         </div>
-        <div class="bj-stats" style="margin-top:20px;">
+        <div class="bj-stats" style="margin-top:20px;${game.twoP ? 'display:none;' : ''}">
           <div><b id="vcWins">${vcStats.wins}</b>Wins</div>
           <div><b id="vcLosses">${vcStats.losses}</b>Losses</div>
           <div><b id="vcDraws">${vcStats.draws}</b>Draws</div>
@@ -15271,18 +15311,18 @@ function vcRenderBoard() {
   vcUpdateStatus();
   cclkRender();
   if (vcGame.over) vcRenderGameReview();
-  else if (vcGame.cfg.fourArmy && !vcHumanTurn(vcGame)) setTimeout(vcAiTurn, 600);
+  else if (!vcHumanTurn(vcGame)) setTimeout(vcAiTurn, 600);
 }
 
 // Fog of War: the squares White can see = its own pieces, every square they can move to, and the square ahead of each pawn.
 function vcFogVisible(game) {
-  const vis = new Set();
+  const vis = new Set(), me = vcMe(game), dir = me === 'w' ? -1 : 1;
   for (let r = 0; r < game.rows; r++) for (let c = 0; c < game.cols; c++) {
     const p = game.board[r][c];
-    if (!p || p.color !== 'w') continue;
+    if (!p || p.color !== me) continue;
     vis.add(r + ',' + c);
     vcPieceMoves(game, r, c).forEach(m => vis.add(m.to[0] + ',' + m.to[1]));
-    if (p.type === 'P' && r > 0) vis.add((r - 1) + ',' + c);
+    if (p.type === 'P' && r + dir >= 0 && r + dir < game.rows) vis.add((r + dir) + ',' + c);
   }
   return vis;
 }
@@ -15294,14 +15334,20 @@ function vcDrawBoard() {
   boardEl.innerHTML = '';
   const viewing = vcViewIndex !== null && vcLog.moves[vcViewIndex];
   const bd = viewing ? vcDecodeBoard(vcLog.moves[vcViewIndex].snap) : game.board;
-  const legal = (!game.over && vcHumanTurn(game) && !viewing) ? vcLegalMoves(game, 'w').concat(vcCitadelMoves(game, 'w')) : [];
+  const me = vcMe(game);
+  const flip = !game.twoP && !game.cfg.fourArmy && game.human === 'b';
+  const legal = (!game.over && vcHumanTurn(game) && !viewing) ? vcLegalMoves(game, me).concat(vcCitadelMoves(game, me)) : [];
   const selMoves = vcSelected ? legal.filter(m => m.from[0] === vcSelected[0] && m.from[1] === vcSelected[1]) : [];
   const targets = new Set(selMoves.map(m => m.to[0] + ',' + m.to[1]));
   const wide = !!game.citadels;
   const fogVis = (game.cfg.fog && !game.over && !viewing) ? vcFogVisible(game) : null;
-  const duckPick = !!(game.duckPending === 'w' && !game.over && !viewing);
-  for (let r = 0; r < game.rows; r++) {
-    for (let c = wide ? -1 : 0; c < game.cols + (wide ? 1 : 0); c++) {
+  const duckPick = !!(game.duckPending === me && !game.over && !viewing);
+  const rOrder = []; for (let r = 0; r < game.rows; r++) rOrder.push(r);
+  const cOrder = []; for (let c = wide ? -1 : 0; c < game.cols + (wide ? 1 : 0); c++) cOrder.push(c);
+  if (flip) { rOrder.reverse(); cOrder.reverse(); }
+  const parityFix = (flip && (game.rows + game.cols) % 2 === 1) ? 1 : 0;
+  for (const r of rOrder) {
+    for (const c of cOrder) {
       if (c < 0 || c >= game.cols) {            // the two edge columns only hold the citadels
         const ct = [game.citadels.w, game.citadels.b].find(t => t[0] === r && t[1] === c);
         const cell = document.createElement('div');
@@ -15316,7 +15362,7 @@ function vcDrawBoard() {
         continue;
       }
       const sq = document.createElement('div');
-      sq.className = 'ch-square ' + ((r + c) % 2 === 0 ? 'light' : 'dark');
+      sq.className = 'ch-square ' + ((r + c + parityFix) % 2 === 0 ? 'light' : 'dark');
       if (vcSelected && vcSelected[0] === r && vcSelected[1] === c) sq.classList.add('selected');
       if (targets.has(r + ',' + c)) sq.classList.add('move-highlight');
       if (duckPick && !bd[r][c]) sq.classList.add('move-highlight');
@@ -15327,7 +15373,7 @@ function vcDrawBoard() {
         sq.classList.add('hint-square');
       }
       const piece = bd[r][c];
-      if (piece && !(hidden && piece.color === 'b')) {
+      if (piece && !(hidden && piece.color !== me)) {
         const pEl = document.createElement('div');
         pEl.className = 'ch-piece vc-piece ' + (piece.color === 'w' ? 'white' : (piece.color === 'd' ? 'duck' : 'black'));
         pEl.textContent = VC_PIECES[piece.type].glyph;
@@ -15347,10 +15393,10 @@ function vcPlaceDuck(game, r, c, color) {
   game.board[r][c] = {type: 'X', color: 'd'};
   game.duck = [r, c];
   game.duckPending = null;
-  game.turn = color === 'w' ? 'b' : 'w';
-  if (color === 'w') {
-    { const pn = game.pendingNote || { note: '\u2014', cap: null }; vcLogMove(game, 'w', pn.note + ' \u{1F986}' + vcSquareName(game, r, c), pn.cap, pn.army); game.pendingNote = null; }
-    cclkMoveMade('w');
+  game.turn = vcOpp(color);
+  {
+    { const pn = game.pendingNote || { note: '\u2014', cap: null }; vcLogMove(game, color, pn.note + ' \u{1F986}' + vcSquareName(game, r, c), pn.cap, pn.army); game.pendingNote = null; }
+    cclkMoveMade(color);
     vcAutosave();
     vcDrawBoard();
     vcUpdateStatus();
@@ -15359,14 +15405,14 @@ function vcPlaceDuck(game, r, c, color) {
 }
 // The computer puts the duck where it hurts White's best capture most.
 function vcAiPlaceDuck(game) {
-  const old = game.duck;
+  const old = game.duck, opp = game.turn;
   if (old) game.board[old[0]][old[1]] = null;
   let best = [], bestVal = Infinity;
   for (let r = 0; r < game.rows; r++) for (let c = 0; c < game.cols; c++) {
     if (game.board[r][c] || (old && old[0] === r && old[1] === c)) continue;
     game.board[r][c] = {type: 'X', color: 'd'}; game.duck = [r, c];
     let worst = 0;
-    vcLegalMoves(game, 'w').forEach(m => {
+    vcLegalMoves(game, opp).forEach(m => {
       const t = game.board[m.to[0]][m.to[1]];
       const v = t ? (t.type === 'K' ? 1000 : (VC_PIECES[t.type] ? VC_PIECES[t.type].value : 1)) : 0;
       if (v > worst) worst = v;
@@ -15383,26 +15429,27 @@ function vcAiPlaceDuck(game) {
 function vcHandleClick(r, c) {
   const game = vcGame;
   if (!game || game.over || !vcHumanTurn(game) || vcViewIndex !== null || chPromoPending) return;
-  if (game.duckPending === 'w') {   // Duck Chess: second half of the turn
-    if (game.board[r] && game.board[r][c] === null) vcPlaceDuck(game, r, c, 'w');
+  const me = vcMe(game);
+  if (game.duckPending === me) {   // Duck Chess: second half of the turn
+    if (game.board[r] && game.board[r][c] === null) vcPlaceDuck(game, r, c, me);
     return;
   }
-  const legal = vcLegalMoves(game, 'w').concat(vcCitadelMoves(game, 'w'));
+  const legal = vcLegalMoves(game, me).concat(vcCitadelMoves(game, me));
   const piece = game.board[r] && game.board[r][c];
   if (vcSelected) {
     const mv = legal.find(m => m.from[0] === vcSelected[0] && m.from[1] === vcSelected[1] && m.to[0] === r && m.to[1] === c);
     if (mv) {
       const mp = game.board[vcSelected[0]][vcSelected[1]];
       vcSelected = null;
-      if (mp && mp.type === 'P' && mp.color === 'w' && game.cfg.promotion === 'queen' && mv.to[0] === 0) {
+      if (mp && mp.type === 'P' && mp.color === me && game.cfg.promotion === 'queen' && mv.to[0] === (me === 'w' ? 0 : game.rows - 1)) {
         vcDrawBoard();
-        chAskPromotion('w', (t) => { mv.promoteTo = t.toUpperCase(); vcExecute(mv); }, () => { vcDrawBoard(); });
+        chAskPromotion(me, (t) => { mv.promoteTo = t.toUpperCase(); vcExecute(mv); }, () => { vcDrawBoard(); });
         return;
       }
       vcExecute(mv); return;
     }
   }
-  if (piece && piece.color === 'w' && (!game.cfg.fourArmy || piece.army === 'r')) { vcSelected = [r, c]; vcDrawBoard(); }
+  if (piece && piece.color === me && (!game.cfg.fourArmy || piece.army === 'r')) { vcSelected = [r, c]; vcDrawBoard(); }
   else { vcSelected = null; vcDrawBoard(); }
 }
 
@@ -15436,14 +15483,15 @@ function vcSquareName(game, r, c) {
 // One-ply greedy best move for White, matching the same evaluation depth
 // vcAiTurn() already uses for Black (this engine has no minimax lookahead)
 // so the hint and the AI reason about the position the same way.
-function vcBestMoveForWhite(game) {
-  const moves = vcLegalMoves(game, 'w');
+function vcBestMoveForMe(game) {
+  const me = vcMe(game), sg = me === 'w' ? 1 : -1;
+  const moves = vcLegalMoves(game, me);
   if (!moves.length) return null;
   let best = null, bestScore = -Infinity;
   moves.forEach(m => {
     const clone = vcCloneGame(game);
     vcApplyMove(clone, m);
-    const score = vcScore(clone);
+    const score = vcScore(clone) * sg;
     if (score > bestScore) { bestScore = score; best = m; }
   });
   return best;
@@ -15452,7 +15500,7 @@ function vcBestMoveForWhite(game) {
 function vcShowHint() {
   const game = vcGame;
   if (!game || game.over || !vcHumanTurn(game) || game.duckPending) return;
-  const move = vcBestMoveForWhite(game);
+  const move = vcBestMoveForMe(game);
   if (!move) return;
   vcHintMove = move;
   const piece = game.board[move.from[0]][move.from[1]];
@@ -15477,8 +15525,9 @@ function vcShowHint() {
 // using vcEvaluate's piece-value scale (king 0 .. queen 9), so the
 // blunder/mistake thresholds are scaled down accordingly.
 function vcAnalyzePlayerMove(game, move) {
-  if (game.turn !== 'w') return null;
-  const bestMove = vcBestMoveForWhite(game);
+  if (game.twoP || game.turn !== vcMe(game)) return null;
+  const sg = vcMe(game) === 'w' ? 1 : -1;
+  const bestMove = vcBestMoveForMe(game);
   if (!bestMove) return null;
   const bestClone = vcCloneGame(game);
   vcApplyMove(bestClone, bestMove);
@@ -15486,7 +15535,7 @@ function vcAnalyzePlayerMove(game, move) {
   const actualClone = vcCloneGame(game);
   vcApplyMove(actualClone, move);
   const actualVal = vcScore(actualClone);
-  const lost = Math.max(0, bestVal - actualVal);
+  const lost = Math.max(0, (bestVal - actualVal) * sg);
   let quality = 'good';
   if (lost >= 5) quality = 'blunder';
   else if (lost >= 2) quality = 'mistake';
@@ -15521,7 +15570,8 @@ function vcKingCaptured(game) {
 }
 function vcExecute(move) {
   const game = vcGame;
-  if (move.citadel) { game.citadelDrawTriggered = true; game.citadelKing = 'w'; cclkMoveMade('w'); vcHintMove = null; vcAutosave(); vcDrawBoard(); vcCheckGameOver(); return; }
+  const mover = game.turn;
+  if (move.citadel) { game.citadelDrawTriggered = true; game.citadelKing = mover; cclkMoveMade(mover); vcHintMove = null; vcAutosave(); vcDrawBoard(); vcCheckGameOver(); return; }
   const capturedPiece = move.kingTo ? null : (game.board[move.to[0]][move.to[1]] ||
     (move.enPassantCapture ? game.board[move.enPassantCapture[0]][move.enPassantCapture[1]] : null));
   const capturedSquare = move.enPassantCapture || (capturedPiece ? move.to : null);
@@ -15529,17 +15579,17 @@ function vcExecute(move) {
   vcHintMove = null;
   const exPiece = game.board[move.from[0]][move.from[1]], exType = exPiece ? exPiece.type : 'P', exArmy = exPiece ? exPiece.army : null;
   vcApplyMove(game, move);
-  { const note = vcNotation(game, move, exType, !!capturedPiece, exPiece) + ((!game.cfg.noCheck && vcKingsAttacked(game, 'b')) ? '+' : '');
-    if (game.cfg.duck) game.pendingNote = { note: note, cap: capturedPiece, army: exArmy }; else vcLogMove(game, 'w', note, capturedPiece, exArmy); }
-  if (!game.cfg.duck) cclkMoveMade('w');
+  { const note = vcNotation(game, move, exType, !!capturedPiece, exPiece) + ((!game.cfg.noCheck && vcKingsAttacked(game, vcOpp(mover))) ? '+' : '');
+    if (game.cfg.duck) game.pendingNote = { note: note, cap: capturedPiece, army: exArmy }; else vcLogMove(game, mover, note, capturedPiece, exArmy); }
+  if (!game.cfg.duck) cclkMoveMade(mover);
   if (analysisEntry) vcMoveAnalysis.push(analysisEntry);
-  if (game.cfg.duck && vcKingCaptured(game) === null) { game.turn = 'w'; game.duckPending = 'w'; }
+  if (game.cfg.duck && vcKingCaptured(game) === null) { game.turn = mover; game.duckPending = mover; }
   vcAutosave();
   vcDrawBoard();
   vcSpawnCaptureEffect(game, capturedPiece, capturedSquare);
   if (vcCheckGameOver()) return;
   vcUpdateStatus();
-  if (game.duckPending === 'w') return;
+  if (game.duckPending) return;
   if (!vcHumanTurn(game)) setTimeout(vcAiTurn, 500);
 }
 
@@ -15571,7 +15621,7 @@ function vcAiMoveFacts(move, piece, originalType, capturedPiece, game, inCheck) 
 
 function vcAiTurn() {
   const game = vcGame;
-  if (!game || game.over) return;
+  if (!game || game.over || vcHumanTurn(game)) return;
   vcHintMove = null;
   const aiCol = game.turn;
   const aiArmy = game.army;
@@ -15597,14 +15647,14 @@ function vcAiTurn() {
   const capturedSquare = chosen.enPassantCapture || (capturedPiece ? chosen.to : null);
   vcApplyMove(game, chosen);
   if (game.cfg.duck && vcKingCaptured(game) === null) vcAiPlaceDuck(game);
-  { const aNote = vcNotation(game, chosen, originalType, !!capturedPiece, piece) + (game.cfg.duck && game.duck ? ' \u{1F986}' + vcSquareName(game, game.duck[0], game.duck[1]) : '') + ((!game.cfg.noCheck && vcKingsAttacked(game, 'w')) ? '+' : '');
+  { const aNote = vcNotation(game, chosen, originalType, !!capturedPiece, piece) + (game.cfg.duck && game.duck ? ' \u{1F986}' + vcSquareName(game, game.duck[0], game.duck[1]) : '') + ((!game.cfg.noCheck && vcKingsAttacked(game, vcOpp(aiCol))) ? '+' : '');
     vcLogMove(game, aiCol, aNote, capturedPiece, aiArmy); }
-  if (!game.cfg.fourArmy) cclkMoveMade('b');
-  const inCheck = vcKingsAttacked(game, 'w');
+  if (!game.cfg.fourArmy) cclkMoveMade(aiCol);
+  const inCheck = vcKingsAttacked(game, vcOpp(aiCol));
   const explanation = game.cfg.fourArmy
     ? VC_ARMY_NAME[aiArmy] + (capturedPiece ? ' captured a ' + ((VC_PIECES[capturedPiece.type] || {}).name || 'piece').toLowerCase() + '.' : ' moved.')
     : game.cfg.fog
-    ? (capturedPiece ? 'Black captured your ' + ((VC_PIECES[capturedPiece.type] || {}).name || 'piece').toLowerCase() + '.' : 'Black moved somewhere in the fog.')
+    ? (capturedPiece ? vcCName(aiCol) + ' captured your ' + ((VC_PIECES[capturedPiece.type] || {}).name || 'piece').toLowerCase() + '.' : vcCName(aiCol) + ' moved somewhere in the fog.')
     : chExplainMove(vcAiMoveFacts(chosen, piece, originalType, capturedPiece, game, inCheck));
   vcAutosave();
   vcDrawBoard();
@@ -15631,8 +15681,7 @@ function vcCheckGameOver() {
     game.over = true;
     pauseTimer();
     cclkStop();
-    vcStats.draws++;
-    safeSet('vc-stats-' + game.variant, vcStats);
+    vcRecord(game, null);
     vcAutosave();
     vcUpdateStatus('Draw \u2014 a king reached the enemy citadel.');
     vcUpdateStatsDom();
@@ -15641,12 +15690,10 @@ function vcCheckGameOver() {
   }
   const kc = vcKingCaptured(game);
   if (kc || (game.cfg.hill && vcHillWinner(game))) {
-    const winner = kc ? (kc === 'b' ? 'w' : 'b') : vcHillWinner(game);
+    const winner = kc ? vcOpp(kc) : vcHillWinner(game);
     game.over = true;
     pauseTimer(); cclkStop();
-    if (winner === 'w') { vcStats.wins++; awardBadges('chess-' + vcGame.variant, vcStats.wins); vcUpdateStatus(kc ? 'You captured the king \u2014 you win!' : 'Your king reached the hill \u2014 you win!'); }
-    else { vcStats.losses++; vcUpdateStatus(kc ? 'Your king was captured \u2014 black wins.' : 'Black\u2019s king reached the hill \u2014 black wins.'); }
-    safeSet('vc-stats-' + game.variant, vcStats);
+    vcRecord(game, winner); vcUpdateStatus(vcWinText(game, winner, kc ? 'king' : 'hill'));
     vcAutosave(); vcDrawBoard(); vcUpdateStatsDom(); vcRenderGameReview();
     return true;
   }
@@ -15666,16 +15713,14 @@ function vcCheckGameOver() {
     cclkStop();
     const hordeWiped = game.cfg.horde && nextColor === 'w' && !game.board.some(row => row.some(p => p && p.color === 'w'));
     if (hordeWiped) {
-      vcStats.losses++; vcUpdateStatus('All your pieces were captured \u2014 black wins.');
+      vcRecord(game, 'b'); vcUpdateStatus(vcWinText(game, 'b', 'horde'));
     } else if (inCheck) {
-      const winner = nextColor === 'w' ? 'b' : 'w';
-      if (winner === 'w') { vcStats.wins++; awardBadges('chess-' + vcGame.variant, vcStats.wins); vcUpdateStatus('Checkmate \u2014 you win!'); }
-      else { vcStats.losses++; vcUpdateStatus('Checkmate \u2014 black wins.'); }
+      const winner = vcOpp(nextColor);
+      vcRecord(game, winner); vcUpdateStatus(vcWinText(game, winner, 'mate'));
     } else {
-      vcStats.draws++;
+      vcRecord(game, null);
       vcUpdateStatus('Stalemate \u2014 the game is drawn.');
     }
-    safeSet('vc-stats-' + game.variant, vcStats);
     vcAutosave();
     vcUpdateStatsDom();
     vcRenderGameReview();
@@ -15700,9 +15745,9 @@ function vcUpdateStatus(msg) {
     status.textContent = (vcHumanTurn(game) ? 'Your move (Red).' : VC_ARMY_NAME[game.army] + ' is thinking\u2026') + (vcKingsAttacked(game, game.turn) ? ' Check!' : '');
     return;
   }
-  if (game.duckPending === 'w') { status.textContent = 'Now move the duck \u{1F986}: tap any empty square.'; return; }
+  if (game.duckPending) { status.textContent = 'Now move the duck \u{1F986}: tap any empty square.'; return; }
   const inCheck = vcKingsAttacked(game, game.turn);
-  status.textContent = (game.turn === 'w' ? 'Your move.' : 'Black is thinking\u2026') + (inCheck ? ' Check!' : '');
+  status.textContent = (game.twoP ? vcCName(game.turn) + ' to move.' : (vcHumanTurn(game) ? 'Your move.' : vcCName(game.turn) + ' is thinking\u2026')) + (inCheck ? ' Check!' : '');
 }
 
 /* ---------------- CHESS INSTRUCTOR: lesson library ---------------- */
