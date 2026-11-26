@@ -7558,6 +7558,7 @@ function openGame(id) {
     currentGameId = id;
     startTimer();
     renderFn(true);
+    if (PROG_RESTORED[id]) { delete PROG_RESTORED[id]; if (PROG_KICK[id]) setTimeout(() => { try { PROG_KICK[id](); } catch (e) {} }, 500); }
   };
 
   if (renderFn && gameStarted[id]) {
@@ -8087,6 +8088,36 @@ const SUDOKU_VARIANTS = {
 };
 const SUDOKU_VARIANT_ORDER = ['classic', 'samurai', 'killer', 'ice'];
 
+// Classic and Ice Sudoku share the same variables, so the one you are not looking at is parked here
+// (and saved with the rest), and each of the four variants keeps its own unfinished puzzle.
+let suStash = {};
+function suPack() { return { suSolution, suGiven, suDifficulty, suShowCandidates, suPuzzleBase, suEnteredGrid, suSolvedOnce, suPencil, suUndoStack, suSelected, suNotesMode, suHighlightDigit, suIce, suIceHits, suIceSpent }; }
+function suUnpack(o) { if ("suSolution" in o) suSolution = o.suSolution; if ("suGiven" in o) suGiven = o.suGiven; if ("suDifficulty" in o) suDifficulty = o.suDifficulty; if ("suShowCandidates" in o) suShowCandidates = o.suShowCandidates; if ("suPuzzleBase" in o) suPuzzleBase = o.suPuzzleBase; if ("suEnteredGrid" in o) suEnteredGrid = o.suEnteredGrid; if ("suSolvedOnce" in o) suSolvedOnce = o.suSolvedOnce; if ("suPencil" in o) suPencil = o.suPencil; if ("suUndoStack" in o) suUndoStack = o.suUndoStack; if ("suSelected" in o) suSelected = o.suSelected; if ("suNotesMode" in o) suNotesMode = o.suNotesMode; if ("suHighlightDigit" in o) suHighlightDigit = o.suHighlightDigit; if ("suIce" in o) suIce = o.suIce; if ("suIceHits" in o) suIceHits = o.suIceHits; if ("suIceSpent" in o) suIceSpent = o.suIceSpent; }
+function suClearState() { suSolution = suGiven = suPuzzleBase = suEnteredGrid = suPencil = suSelected = suHighlightDigit = suIceHits = null; suIce = false; suUndoStack = []; suSolvedOnce = false; suIceSpent = new Set(); }
+function suSwitchVariantState(from, to) {
+  if (from === to) return;
+  const shared = v => v === 'classic' || v === 'ice';
+  if (shared(from)) { if (suPuzzleBase) suStash[from] = suPack(); suClearState(); }
+  if (shared(to) && suStash[to]) { suUnpack(suStash[to]); delete suStash[to]; }
+}
+function suVariantHasState(id) {
+  if (id === 'samurai') return !!(samSolution && samSolution.length);
+  if (id === 'killer') return !!(kmSolution && kmSolution.length);
+  if (suMetaVariant === id && suPuzzleBase && (id === 'ice') === !!suIce) return true;
+  return !!suStash[id];
+}
+function suMetaRefreshSaves() {
+  const row = document.getElementById('suVariantRow'), cont = document.getElementById('suMetaContinueBtn'), st = document.getElementById('suMetaStartBtn');
+  if (row) row.querySelectorAll('.diff-btn').forEach((el, i) => {
+    const id = SUDOKU_VARIANT_ORDER[i], has = suVariantHasState(id);
+    let dot = el.querySelector('.ch-save-dot');
+    if (has && !dot) { dot = document.createElement('span'); dot.className = 'ch-save-dot'; dot.textContent = ' \u25CF'; dot.style.color = 'var(--brass-light)'; dot.title = 'Unfinished puzzle'; el.insertBefore(dot, el.querySelector('br')); }
+    if (!has && dot) dot.remove();
+  });
+  const has = suVariantHasState(suMetaVariant);
+  if (cont) cont.style.display = has ? '' : 'none';
+  if (st) st.textContent = has ? 'Start a new puzzle' : 'Start';
+}
 function suMetaStartSetup() { suMetaShowSetup = true; renderSudoku(); }
 
 function suMetaRenderSetup() {
@@ -8110,6 +8141,7 @@ function suMetaRenderSetup() {
       <p>Samurai and Killer follow the Level setting (Easy/Medium/Hard) in the top bar.</p>
     `)}
     <div class="ch-tier-row" id="suVariantRow"></div>
+    <button class="btn" id="suMetaContinueBtn" style="margin-top:4px;display:none;">Continue puzzle</button>
     <button class="btn" id="suMetaStartBtn" style="margin-top:4px;">Start</button>
   `;
   const variantRow = document.getElementById('suVariantRow');
@@ -8120,13 +8152,17 @@ function suMetaRenderSetup() {
     b.style.flex = '1 1 auto';
     b.innerHTML = `${v.label}<br><span style="font-size:11px;opacity:.75;">${v.sub}</span>`;
     b.addEventListener('click', () => {
+      suSwitchVariantState(suMetaVariant, id);
       suMetaVariant = id;
       safeSet('sudoku-variant', id);
       variantRow.querySelectorAll('.diff-btn').forEach(el => el.classList.remove('active'));
       b.classList.add('active');
+      suMetaRefreshSaves();
     });
     variantRow.appendChild(b);
   });
+  suMetaRefreshSaves();
+  document.getElementById('suMetaContinueBtn').addEventListener('click', () => { startTimer(); renderSudoku(true); });
   document.getElementById('suMetaStartBtn').addEventListener('click', () => {
     if (suMetaVariant === 'classic') renderClassicSudoku(false);
     else if (suMetaVariant === 'ice') renderIceSudoku(false);
@@ -12707,6 +12743,9 @@ function chBuildNotation(move, piece, isCapture) {
 }
 
 function chRecordMove(move, piece, isCapture, capturedPiece) {
+  try { return chRecordMoveInner(move, piece, isCapture, capturedPiece); } finally { chPersistStd(); }
+}
+function chRecordMoveInner(move, piece, isCapture, capturedPiece) {
   let notation = chBuildNotation(move, piece, isCapture);
   const opponent = piece.color === 'w' ? 'b' : 'w';
   const kingPos = chFindKing(chState.board, opponent);
@@ -13354,6 +13393,25 @@ function gcApply(m) {
   }
 }
 function gcStat(k) { const key = 'gc-stats-' + gcG.id; const s = safeGet(key, { wins: 0, losses: 0, draws: 0 }); s[k] = (s[k] || 0) + 1; safeSet(key, s); }
+// Hexagonal chess keeps its own unfinished game, just like the other rule sets.
+function gcSaveNow() {
+  if (!gcG || !gcG.id) return;
+  const k = 'gc-save-' + gcG.id;
+  if (gcOver) { safeSet(k, null); return; }
+  safeSet(k, { g: gcG, mode: gcMode, level: gcLevel }); safeSet('chess-active', gcG.id);
+}
+function gcLoad(id) {
+  const sv = safeGet('gc-save-' + id, null);
+  if (!sv || !sv.g || !sv.g.sq) return false;
+  gcB = GC_BOARDS[id] ? GC_BOARDS[id].build() : gcB;
+  gcG = sv.g; gcMode = sv.mode || '1p'; gcLevel = sv.level || 2; gcSel = null; gcBusy = false; gcOver = false;
+  safeSet('chess-active', id);
+  gcRender();
+  if (gcMode === '1p' && gcG.turn !== gcG.human) { gcBusy = true; setTimeout(() => { gcBusy = false; if (gcOver) return; const mv = gcAiMove(); if (mv) gcApply(mv); }, 500); }
+  return true;
+}
+setInterval(() => { try { if (gcG && document.getElementById('view') && document.querySelector('#view svg') && !document.hidden && currentGameId === 'chess') gcSaveNow(); } catch (e) {} }, 2000);
+window.addEventListener('pagehide', () => { try { if (gcG && currentGameId === 'chess') gcSaveNow(); } catch (e) {} });
 function gcStart(id) {
   gcMode = chMode; gcLevel = (typeof chEloRating === 'number' && chEloRating < 1200) ? 1 : 2;
   gcNewGame(id);
@@ -13408,8 +13466,10 @@ function chRenderSetup() {
         <input type="range" id="chEloSlider" min="0" max="3100" step="50" value="${chEloRating}">
       </div>
     </div>
+    <p id="chSaveNote" style="margin:12px 0 0; color:var(--brass-light); font-size:13px; display:none;">You have an unfinished game in this rule set.</p>
     <div class="btn-row" style="margin-top:14px;">
       <button class="btn" id="chStartBtn">Start</button>
+      <button class="btn ghost" id="chNewBtn" style="display:none;">Start a new game</button>
       <button class="btn ghost" id="chLessonsBtn">Lessons &amp; record</button>
     </div>
   `;
@@ -13427,6 +13487,7 @@ function chRenderSetup() {
       variantRow.querySelectorAll('.diff-btn').forEach(el => el.classList.remove('active'));
       b.classList.add('active');
       chRenderSetupModeRow();
+      chRefreshSaveUi();
     });
     variantRow.appendChild(b);
   });
@@ -13442,11 +13503,43 @@ function chRenderSetup() {
     chEloRating = parseInt(eloSlider.value, 10);
     safeSet('chess-elo', chEloRating);
   });
-  document.getElementById('chStartBtn').addEventListener('click', () => {
-    if (chVariant === 'standard') chStartStandard();
-    else if (GC_BOARDS[chVariant]) gcStart(chVariant);
-    else vcStartGame(chVariant);
+  const goGame = (fresh) => {
+    chPersistStd();
+    if (chVariant === 'standard') {
+      vcGame = null;
+      if (!fresh && chHasSave('standard') && chLoadStd()) { chRenderBoardScreen(true); return; }
+      chClearStd(); chStartStandard();
+    } else if (GC_BOARDS[chVariant]) {
+      chState = null; vcGame = null;
+      if (!fresh && chHasSave(chVariant) && gcLoad(chVariant)) return;
+      safeSet('gc-save-' + chVariant, null); safeSet('chess-active', chVariant); gcStart(chVariant);
+    }
+    else {
+      chState = null; vcGame = null;
+      if (!fresh && chHasSave(chVariant) && vcLoadSave(chVariant)) { safeSet('chess-active', chVariant); vcRenderBoard(); return; }
+      safeSet(vcSaveKey(chVariant), null); safeSet(vcLogKey(chVariant), null);
+      safeSet('chess-active', chVariant);
+      vcStartGame(chVariant);
+    }
+  };
+  document.getElementById('chStartBtn').addEventListener('click', () => goGame(false));
+  document.getElementById('chNewBtn').addEventListener('click', () => goGame(true));
+  chRefreshSaveUi();
+}
+// Marks the rule sets that have an unfinished game and switches Start to Continue.
+function chRefreshSaveUi() {
+  const row = document.getElementById('chVariantRow'), st = document.getElementById('chStartBtn'), nb = document.getElementById('chNewBtn'), note = document.getElementById('chSaveNote');
+  if (row) row.querySelectorAll('.diff-btn').forEach((el, i) => {
+    const id = CHESS_VARIANT_ORDER[i];
+    let dot = el.querySelector('.ch-save-dot');
+    const has = chHasSave(id);
+    if (has && !dot) { dot = document.createElement('span'); dot.className = 'ch-save-dot'; dot.textContent = ' \u25CF'; dot.title = 'Unfinished game'; dot.style.color = 'var(--brass-light)'; el.insertBefore(dot, el.querySelector('br')); }
+    if (!has && dot) dot.remove();
   });
+  const has = chHasSave(chVariant);
+  if (st) st.textContent = has ? 'Continue game' : 'Start';
+  if (nb) nb.style.display = has ? '' : 'none';
+  if (note) note.style.display = has ? '' : 'none';
 }
 
 // 2-player (hot-seat, no AI) mode is only offered for Standard Chess --
@@ -13617,7 +13710,7 @@ function chRenderClockSetup() {
 }
 function chFlag(color) {
   if (chOver) return;
-  chOver = true; pauseTimer();
+  chOver = true; chPersistStd(); pauseTimer();
   const winner = color === 'w' ? 'b' : 'w';
   if (chMode !== '2p') {
     if (winner === chHumanColor) { chStats.wins++; awardBadges('chess', chStats.wins); } else chStats.losses++;
@@ -13640,6 +13733,29 @@ function vcFlag(color) {
   vcAutosave(); vcUpdateStatsDom(); vcRenderGameReview();
 }
 
+function chPersistStd() {
+  if (!chState || typeof safeSet !== 'function') return;
+  safeSet('ch-std-save', { state: chState, log: chMoveLog, captured: chCaptured, analysis: chMoveAnalysis, human: chHumanColor, mode: chMode, over: !!chOver });
+  safeSet('chess-active', 'standard');
+}
+function chClearStd() { safeSet('ch-std-save', null); }
+function chLoadStd() {
+  const sv = safeGet('ch-std-save', null);
+  if (!sv || !sv.state || sv.over) return false;
+  chState = sv.state; chMoveLog = sv.log || []; chCaptured = sv.captured || { w: [], b: [] }; chMoveAnalysis = sv.analysis || [];
+  chHumanColor = sv.human || 'w'; chMode = sv.mode || '1p'; chOver = false;
+  chSelected = null; chHintMove = null; chViewIndex = null; chAnimating = false;
+  return true;
+}
+function chHasSave(id) {
+  if (id === 'standard') { const sv = safeGet('ch-std-save', null); return !!(sv && sv.state && !sv.over); }
+  if (GC_BOARDS[id]) { const gs = safeGet('gc-save-' + id, null); return !!(gs && gs.g && gs.g.sq); }
+  if (!VC_VARIANT_CFG[id]) return false;
+  let sv = safeGet(vcSaveKey(id), null);
+  if (!sv) { const old = safeGet('ch-variant-save', null); if (old && old.variant === id) sv = old; }
+  return !!(sv && !sv.over);
+}
+if (typeof window !== 'undefined') window.addEventListener('pagehide', () => { try { chPersistStd(); } catch (e) {} });
 function chStartStandard() {
   chAnimToken++;
   chAnimating = false;
@@ -13657,6 +13773,8 @@ function chStartStandard() {
   chMoveAnalysis = [];
   chHintMove = null;
   chCaptured = { w: [], b: [] };
+  chPersistStd();
+  safeSet('chess-active', 'standard');
   chRenderBoardScreen(false);
 }
 
@@ -13784,7 +13902,7 @@ function chRenderBoardScreen(resume) {
   document.getElementById('chChangeSettings').addEventListener('click', () => chStartSetup());
   document.getElementById('chNew').addEventListener('click', () => {
     chStopPlaybackInterval();
-    safeSet('ch-variant-save', null); chState = null; vcGame = null; renderChess();
+    chClearStd(); chState = null; vcGame = null; renderChess();
   });
   const hintBtn = document.getElementById('chHintBtn');
   if (hintBtn) hintBtn.addEventListener('click', chShowHint);
@@ -13849,14 +13967,20 @@ function renderChess(resume) {
   if (resume) {
     if (chState) { chAnimToken++; chAnimating = false; chViewIndex = null; chRenderBoardScreen(true); return; }
     if (vcGame) { vcRenderBoard(); return; }
-    if (vcLoadSave()) { vcRenderBoard(); return; }
+    if (gcG && !gcOver) { gcRender(); return; }
+    const act = safeGet('chess-active', null);
+    if (act && GC_BOARDS[act] && gcLoad(act)) return;   // the game that was open last
+    if (act === 'standard' && chLoadStd()) { chRenderBoardScreen(true); return; }
+    if (act && act !== 'standard' && vcLoadSave(act)) { vcRenderBoard(); return; }
     chRenderSetup();
     return;
   }
-  if (!chState && !vcGame) { chRenderSetup(); return; }
+  // Opening Chess fresh: every rule set keeps its own unfinished game, so nothing is thrown away here.
+  chPersistStd();
+  if (gcG && !gcOver) gcSaveNow();
   chState = null;
   vcGame = null;
-  safeSet('ch-variant-save', null);
+  gcG = null;
   chRenderSetup();
 }
 
@@ -14427,7 +14551,7 @@ function chCheckGameOver() {
   const inCheck = kingPos && chIsAttacked(chState.board, kingPos[0], kingPos[1], nextColor === 'w' ? 'b' : 'w');
 
   if (moves.length === 0) {
-    chOver = true;
+    chOver = true; chPersistStd();
     pauseTimer();
     cclkStop();
     if (inCheck) {
@@ -14931,11 +15055,13 @@ function vcRulesHtml(variantId) {
   return `<p>Rule set: <b>${v.label}</b>.</p>${v.rules || `<p>${v.sub}.</p>`}<p>You play White and move first. ${CHESS_VARIANTS[variantId].noCheckRules ? '' : 'Checkmate wins; stalemate is a draw.'}</p>`;
 }
 
+function vcSaveKey(id) { return 'ch-variant-save-' + id; }
+function vcLogKey(id) { return 'ch-variant-log-' + id; }
 let vcLog = { variant: null, moves: [], captured: { w: [], b: [] } };
 let vcViewIndex = null, vcPlaying = false, vcPlayTimer = null;
 function vcResetLog(variant) { vcLog = { variant: variant, moves: [], captured: { w: [], b: [] } }; vcViewIndex = null; vcStopPlay(); }
 function vcAutosave() {
-  if (vcGame) { safeSet('ch-variant-save', vcGame); safeSet('ch-variant-log', vcLog); }
+  if (vcGame) { safeSet(vcSaveKey(vcGame.variant), vcGame); safeSet(vcLogKey(vcGame.variant), vcLog); safeSet('chess-active', vcGame.variant); }
 }
 // ---- move list, captured pieces and step-through playback for the variant boards (same as Standard Chess) ----
 function vcEncodeBoard(game) { return game.board.map(row => row.map(p => p ? (p.type + p.color + (p.army || '')) : '')); }
@@ -15028,14 +15154,23 @@ function vcTogglePlay() {
   vcPlayTimer = setInterval(() => { if (vcViewIndex === null || vcViewIndex >= vcLog.moves.length - 1) { vcLive(); } else vcShowPos(vcViewIndex + 1); }, 900);
 }
 
-function vcLoadSave() {
-  const saved = safeGet('ch-variant-save', null);
-  if (!saved || !saved.variant || !VC_VARIANT_CFG[saved.variant]) return false;
+function vcLoadSave(variantId) {
+  let saved = variantId ? safeGet(vcSaveKey(variantId), null) : null;
+  if (!saved) {   // an older version kept one shared slot: move it to its own variant slot
+    const old = safeGet('ch-variant-save', null);
+    if (old && old.variant && (!variantId || old.variant === variantId)) {
+      safeSet(vcSaveKey(old.variant), old);
+      const oldLog = safeGet('ch-variant-log', null); if (oldLog) safeSet(vcLogKey(old.variant), oldLog);
+      safeSet('ch-variant-save', null); safeSet('ch-variant-log', null);
+      if (!variantId || old.variant === variantId) saved = old;
+    }
+  }
+  if (!saved || !saved.variant || !VC_VARIANT_CFG[saved.variant] || saved.over) return false;
   saved.cfg = VC_VARIANT_CFG[saved.variant];
   if (saved.cfg.boardKind === 'tamerlane') saved.citadels = saved.cfg.citadelDraw ? {w: [1, -1], b: [8, saved.cfg.cols]} : null;
   vcGame = saved;
   vcSelected = null;
-  const lg = safeGet('ch-variant-log', null);
+  const lg = safeGet(vcLogKey(saved.variant), null);
   if (lg && lg.variant === saved.variant && Array.isArray(lg.moves) && lg.captured) { vcLog = lg; vcViewIndex = null; vcStopPlay(); }
   else vcResetLog(saved.variant);
   return true;
@@ -15102,7 +15237,7 @@ function vcRenderBoard() {
     </div>
   `;
   document.getElementById('vcChangeSettings').addEventListener('click', () => chStartSetup());
-  document.getElementById('vcNew').addEventListener('click', () => { safeSet('ch-variant-save', null); safeSet('ch-variant-log', null); vcGame = null; chState = null; renderChess(); });
+  document.getElementById('vcNew').addEventListener('click', () => { const vid = vcGame && vcGame.variant; if (vid) { safeSet(vcSaveKey(vid), null); safeSet(vcLogKey(vid), null); } vcGame = null; chState = null; renderChess(); });
   document.getElementById('vcHintBtn').addEventListener('click', vcShowHint);
   vcStopPlay(); vcViewIndex = null;
   document.getElementById('vcPbFirst').addEventListener('click', vcStepFirst);
@@ -23836,7 +23971,7 @@ function optShowCredits() {
 /* ---------------- PROGRESS SAVING (every game keeps its own place, even after the page is closed) ---------------- */
 const PROGRESS_SAVERS = {
   blackjack: { has: () => { const v = (bjState); return Array.isArray(v) ? v.length > 0 : !!v; }, get: () => ({ bjState, bjBet }), set: (o) => { if ("bjState" in o) bjState = o.bjState; if ("bjBet" in o) bjBet = o.bjBet; } },
-  sudoku: { has: () => { const v = (suSolution||kmSolution||samSolution); return Array.isArray(v) ? v.length > 0 : !!v; }, get: () => ({ suSolution, suGiven, suDifficulty, suShowCandidates, suPuzzleBase, suEnteredGrid, suSolvedOnce, suPencil, suUndoStack, suSelected, suNotesMode, suHighlightDigit, suIce, suIceHits, suIceSpent, suMetaShowSetup, suMetaVariant, kmSolution, kmCageId, kmCageSum, kmCageMinCell, kmShowCandidates, kmEnteredGrid, kmPencil, kmUndoStack, kmSelected, kmNotesMode, kmCageStyle, kmCageColor, kmHighlightDigit, kmSolvedOnce, samSolution, samGiven, samValid, samShowCandidates, samEnteredGrid, samSolvedOnce, samPencil, samUndoStack, samSelected, samNotesMode, samHighlightDigit }), set: (o) => { if ("suSolution" in o) suSolution = o.suSolution; if ("suGiven" in o) suGiven = o.suGiven; if ("suDifficulty" in o) suDifficulty = o.suDifficulty; if ("suShowCandidates" in o) suShowCandidates = o.suShowCandidates; if ("suPuzzleBase" in o) suPuzzleBase = o.suPuzzleBase; if ("suEnteredGrid" in o) suEnteredGrid = o.suEnteredGrid; if ("suSolvedOnce" in o) suSolvedOnce = o.suSolvedOnce; if ("suPencil" in o) suPencil = o.suPencil; if ("suUndoStack" in o) suUndoStack = o.suUndoStack; if ("suSelected" in o) suSelected = o.suSelected; if ("suNotesMode" in o) suNotesMode = o.suNotesMode; if ("suHighlightDigit" in o) suHighlightDigit = o.suHighlightDigit; if ("suIce" in o) suIce = o.suIce; if ("suIceHits" in o) suIceHits = o.suIceHits; if ("suIceSpent" in o) suIceSpent = o.suIceSpent; if ("suMetaShowSetup" in o) suMetaShowSetup = o.suMetaShowSetup; if ("suMetaVariant" in o) suMetaVariant = o.suMetaVariant; if ("kmSolution" in o) kmSolution = o.kmSolution; if ("kmCageId" in o) kmCageId = o.kmCageId; if ("kmCageSum" in o) kmCageSum = o.kmCageSum; if ("kmCageMinCell" in o) kmCageMinCell = o.kmCageMinCell; if ("kmShowCandidates" in o) kmShowCandidates = o.kmShowCandidates; if ("kmEnteredGrid" in o) kmEnteredGrid = o.kmEnteredGrid; if ("kmPencil" in o) kmPencil = o.kmPencil; if ("kmUndoStack" in o) kmUndoStack = o.kmUndoStack; if ("kmSelected" in o) kmSelected = o.kmSelected; if ("kmNotesMode" in o) kmNotesMode = o.kmNotesMode; if ("kmCageStyle" in o) kmCageStyle = o.kmCageStyle; if ("kmCageColor" in o) kmCageColor = o.kmCageColor; if ("kmHighlightDigit" in o) kmHighlightDigit = o.kmHighlightDigit; if ("kmSolvedOnce" in o) kmSolvedOnce = o.kmSolvedOnce; if ("samSolution" in o) samSolution = o.samSolution; if ("samGiven" in o) samGiven = o.samGiven; if ("samValid" in o) samValid = o.samValid; if ("samShowCandidates" in o) samShowCandidates = o.samShowCandidates; if ("samEnteredGrid" in o) samEnteredGrid = o.samEnteredGrid; if ("samSolvedOnce" in o) samSolvedOnce = o.samSolvedOnce; if ("samPencil" in o) samPencil = o.samPencil; if ("samUndoStack" in o) samUndoStack = o.samUndoStack; if ("samSelected" in o) samSelected = o.samSelected; if ("samNotesMode" in o) samNotesMode = o.samNotesMode; if ("samHighlightDigit" in o) samHighlightDigit = o.samHighlightDigit; } },
+  sudoku: { has: () => { const v = (suSolution||kmSolution||samSolution||(Object.keys(suStash).length ? suStash : null)); return Array.isArray(v) ? v.length > 0 : !!v; }, get: () => ({ suStash, suSolution, suGiven, suDifficulty, suShowCandidates, suPuzzleBase, suEnteredGrid, suSolvedOnce, suPencil, suUndoStack, suSelected, suNotesMode, suHighlightDigit, suIce, suIceHits, suIceSpent, suMetaShowSetup, suMetaVariant, kmSolution, kmCageId, kmCageSum, kmCageMinCell, kmShowCandidates, kmEnteredGrid, kmPencil, kmUndoStack, kmSelected, kmNotesMode, kmCageStyle, kmCageColor, kmHighlightDigit, kmSolvedOnce, samSolution, samGiven, samValid, samShowCandidates, samEnteredGrid, samSolvedOnce, samPencil, samUndoStack, samSelected, samNotesMode, samHighlightDigit }), set: (o) => { if ("suStash" in o) suStash = o.suStash || {}; if ("suSolution" in o) suSolution = o.suSolution; if ("suGiven" in o) suGiven = o.suGiven; if ("suDifficulty" in o) suDifficulty = o.suDifficulty; if ("suShowCandidates" in o) suShowCandidates = o.suShowCandidates; if ("suPuzzleBase" in o) suPuzzleBase = o.suPuzzleBase; if ("suEnteredGrid" in o) suEnteredGrid = o.suEnteredGrid; if ("suSolvedOnce" in o) suSolvedOnce = o.suSolvedOnce; if ("suPencil" in o) suPencil = o.suPencil; if ("suUndoStack" in o) suUndoStack = o.suUndoStack; if ("suSelected" in o) suSelected = o.suSelected; if ("suNotesMode" in o) suNotesMode = o.suNotesMode; if ("suHighlightDigit" in o) suHighlightDigit = o.suHighlightDigit; if ("suIce" in o) suIce = o.suIce; if ("suIceHits" in o) suIceHits = o.suIceHits; if ("suIceSpent" in o) suIceSpent = o.suIceSpent; if ("suMetaShowSetup" in o) suMetaShowSetup = o.suMetaShowSetup; if ("suMetaVariant" in o) suMetaVariant = o.suMetaVariant; if ("kmSolution" in o) kmSolution = o.kmSolution; if ("kmCageId" in o) kmCageId = o.kmCageId; if ("kmCageSum" in o) kmCageSum = o.kmCageSum; if ("kmCageMinCell" in o) kmCageMinCell = o.kmCageMinCell; if ("kmShowCandidates" in o) kmShowCandidates = o.kmShowCandidates; if ("kmEnteredGrid" in o) kmEnteredGrid = o.kmEnteredGrid; if ("kmPencil" in o) kmPencil = o.kmPencil; if ("kmUndoStack" in o) kmUndoStack = o.kmUndoStack; if ("kmSelected" in o) kmSelected = o.kmSelected; if ("kmNotesMode" in o) kmNotesMode = o.kmNotesMode; if ("kmCageStyle" in o) kmCageStyle = o.kmCageStyle; if ("kmCageColor" in o) kmCageColor = o.kmCageColor; if ("kmHighlightDigit" in o) kmHighlightDigit = o.kmHighlightDigit; if ("kmSolvedOnce" in o) kmSolvedOnce = o.kmSolvedOnce; if ("samSolution" in o) samSolution = o.samSolution; if ("samGiven" in o) samGiven = o.samGiven; if ("samValid" in o) samValid = o.samValid; if ("samShowCandidates" in o) samShowCandidates = o.samShowCandidates; if ("samEnteredGrid" in o) samEnteredGrid = o.samEnteredGrid; if ("samSolvedOnce" in o) samSolvedOnce = o.samSolvedOnce; if ("samPencil" in o) samPencil = o.samPencil; if ("samUndoStack" in o) samUndoStack = o.samUndoStack; if ("samSelected" in o) samSelected = o.samSelected; if ("samNotesMode" in o) samNotesMode = o.samNotesMode; if ("samHighlightDigit" in o) samHighlightDigit = o.samHighlightDigit; } },
   jigsaw: { has: () => { const v = (jigOrder||jpOrder); return Array.isArray(v) ? v.length > 0 : !!v; }, get: () => ({ jigSize, jigOrder, jigImageId, jigSolvedOnce, jigMode, jigTray, jpTray, jpSize, jpImageId, jpEdgeH, jpEdgeV, jpOrder, jpSelected, jpTraySel, jpSolvedOnce, jigImageUrl }), set: (o) => { if ("jigSize" in o) jigSize = o.jigSize; if ("jigOrder" in o) jigOrder = o.jigOrder; if ("jigImageId" in o) jigImageId = o.jigImageId; if ("jigSolvedOnce" in o) jigSolvedOnce = o.jigSolvedOnce; if ("jigMode" in o) jigMode = o.jigMode; if ("jigTray" in o) jigTray = o.jigTray; if ("jpTray" in o) jpTray = o.jpTray; if ("jpSize" in o) jpSize = o.jpSize; if ("jpImageId" in o) jpImageId = o.jpImageId; if ("jpEdgeH" in o) jpEdgeH = o.jpEdgeH; if ("jpEdgeV" in o) jpEdgeV = o.jpEdgeV; if ("jpOrder" in o) jpOrder = o.jpOrder; if ("jpSelected" in o) jpSelected = o.jpSelected; if ("jpTraySel" in o) jpTraySel = o.jpTraySel; if ("jpSolvedOnce" in o) jpSolvedOnce = o.jpSolvedOnce;; if ("jigImageUrl" in o) jigImageUrl = o.jigImageUrl; } },
   crossmath: { has: () => { const v = (cmCells); return Array.isArray(v) ? v.length > 0 : !!v; }, get: () => ({ cmCells, cmEquations, cmGiven, cmPlayerGrid, cmPalette, cmSelectedChip, cmBounds, cmSolvedOnce }), set: (o) => { if ("cmCells" in o) cmCells = o.cmCells; if ("cmEquations" in o) cmEquations = o.cmEquations; if ("cmGiven" in o) cmGiven = o.cmGiven; if ("cmPlayerGrid" in o) cmPlayerGrid = o.cmPlayerGrid; if ("cmPalette" in o) cmPalette = o.cmPalette; if ("cmSelectedChip" in o) cmSelectedChip = o.cmSelectedChip; if ("cmBounds" in o) cmBounds = o.cmBounds; if ("cmSolvedOnce" in o) cmSolvedOnce = o.cmSolvedOnce; } },
   courtpiece: { has: () => { const v = (cpHands); return Array.isArray(v) ? v.length > 0 : !!v; }, get: () => ({ cpHands, cpTrump, cpLeader, cpTurn, cpTrick, cpTricksWon, cpHandOver, cpAwaiting }), set: (o) => { if ("cpHands" in o) cpHands = o.cpHands; if ("cpTrump" in o) cpTrump = o.cpTrump; if ("cpLeader" in o) cpLeader = o.cpLeader; if ("cpTurn" in o) cpTurn = o.cpTurn; if ("cpTrick" in o) cpTrick = o.cpTrick; if ("cpTricksWon" in o) cpTricksWon = o.cpTricksWon; if ("cpHandOver" in o) cpHandOver = o.cpHandOver; if ("cpAwaiting" in o) cpAwaiting = o.cpAwaiting; } },
@@ -23855,6 +23990,20 @@ const PROGRESS_SAVERS = {
   mahjong: { has: () => { const v = (mjTiles); return Array.isArray(v) ? v.length > 0 : !!v; }, get: () => ({ mjTiles, mjSelected, mjMatchesFound, mjTotalPairs, mjOver, mjBest, mjHistory, mjHint, mjStuck, mjShuffles, mjLayoutId }), set: (o) => { if ("mjTiles" in o) mjTiles = o.mjTiles; if ("mjSelected" in o) mjSelected = o.mjSelected; if ("mjMatchesFound" in o) mjMatchesFound = o.mjMatchesFound; if ("mjTotalPairs" in o) mjTotalPairs = o.mjTotalPairs; if ("mjOver" in o) mjOver = o.mjOver; if ("mjBest" in o) mjBest = o.mjBest; if ("mjHistory" in o) mjHistory = o.mjHistory; if ("mjHint" in o) mjHint = o.mjHint; if ("mjStuck" in o) mjStuck = o.mjStuck; if ("mjShuffles" in o) mjShuffles = o.mjShuffles; if ("mjLayoutId" in o) mjLayoutId = o.mjLayoutId; } },
   uno: { has: () => { const v = (unHands); return Array.isArray(v) ? v.length > 0 : !!v; }, get: () => ({ unShowSetup, unPlayerCount, unNames, unDeck, unDiscard, unHands, unTurnIdx, unDir, unCurrentColor, unOver, unRoundWinner, unScores, unPendingWildIdx, unMsg }), set: (o) => { if ("unShowSetup" in o) unShowSetup = o.unShowSetup; if ("unPlayerCount" in o) unPlayerCount = o.unPlayerCount; if ("unNames" in o) unNames = o.unNames; if ("unDeck" in o) unDeck = o.unDeck; if ("unDiscard" in o) unDiscard = o.unDiscard; if ("unHands" in o) unHands = o.unHands; if ("unTurnIdx" in o) unTurnIdx = o.unTurnIdx; if ("unDir" in o) unDir = o.unDir; if ("unCurrentColor" in o) unCurrentColor = o.unCurrentColor; if ("unOver" in o) unOver = o.unOver; if ("unRoundWinner" in o) unRoundWinner = o.unRoundWinner; if ("unScores" in o) unScores = o.unScores; if ("unPendingWildIdx" in o) unPendingWildIdx = o.unPendingWildIdx; if ("unMsg" in o) unMsg = o.unMsg; } },
   monopoly: { has: () => { const v = (mpPositions); return Array.isArray(v) ? v.length > 0 : !!v; }, get: () => ({ mpShowSetup, mpVariant, mpPlayerCount, mpNames, mpPositions, mpCash, mpBankruptOrder, mpProperties, mpInJail, mpJailTurns, mpGetOutCards, mpBankrupt, mpTurnIdx, mpDoublesCount, mpDice, mpOver, mpWinnerIdx, mpPendingAction, mpPendingSpace, mpCardPopup, mpMsg, mpDecks }), set: (o) => { if ("mpShowSetup" in o) mpShowSetup = o.mpShowSetup; if ("mpVariant" in o) mpVariant = o.mpVariant; if ("mpPlayerCount" in o) mpPlayerCount = o.mpPlayerCount; if ("mpNames" in o) mpNames = o.mpNames; if ("mpPositions" in o) mpPositions = o.mpPositions; if ("mpCash" in o) mpCash = o.mpCash; if ("mpBankruptOrder" in o) mpBankruptOrder = o.mpBankruptOrder;; if ("mpProperties" in o) mpProperties = o.mpProperties; if ("mpInJail" in o) mpInJail = o.mpInJail; if ("mpJailTurns" in o) mpJailTurns = o.mpJailTurns; if ("mpGetOutCards" in o) mpGetOutCards = o.mpGetOutCards; if ("mpBankrupt" in o) mpBankrupt = o.mpBankrupt; if ("mpTurnIdx" in o) mpTurnIdx = o.mpTurnIdx; if ("mpDoublesCount" in o) mpDoublesCount = o.mpDoublesCount; if ("mpDice" in o) mpDice = o.mpDice; if ("mpOver" in o) mpOver = o.mpOver; if ("mpWinnerIdx" in o) mpWinnerIdx = o.mpWinnerIdx; if ("mpPendingAction" in o) mpPendingAction = o.mpPendingAction; if ("mpPendingSpace" in o) mpPendingSpace = o.mpPendingSpace; if ("mpCardPopup" in o) mpCardPopup = o.mpCardPopup; if ("mpMsg" in o) mpMsg = o.mpMsg; if ("mpDecks" in o) mpDecks = o.mpDecks; } },
+};
+// More games that keep their own place (added with the same rules as the savers above).
+PROGRESS_SAVERS.ludo6 = { has: () => !!(l6Tokens && !l6Over), get: () => ({ l6Tokens, l6Turn, l6Roll, l6Sixes, l6Awaiting, l6Over, l6Movable, l6FinishOrder, l6Medals, l6Caps }), set: (o) => { if ("l6Tokens" in o) l6Tokens = o.l6Tokens; if ("l6Turn" in o) l6Turn = o.l6Turn; if ("l6Roll" in o) l6Roll = o.l6Roll; if ("l6Sixes" in o) l6Sixes = o.l6Sixes; if ("l6Awaiting" in o) l6Awaiting = o.l6Awaiting; if ("l6Over" in o) l6Over = o.l6Over; if ("l6Movable" in o) l6Movable = o.l6Movable; if ("l6FinishOrder" in o) l6FinishOrder = o.l6FinishOrder; if ("l6Medals" in o) l6Medals = o.l6Medals; if ("l6Caps" in o) l6Caps = o.l6Caps; } };
+PROGRESS_SAVERS.munch = { has: () => !!(munchWalls && !munchOver && !munchWon), get: () => ({ munchWalls, munchDots, munchPower, munchPlayerPos, munchGhosts, munchPoweredLeft, munchLives, munchEaten, munchTotal, munchOver, munchWon }), set: (o) => { if ("munchWalls" in o) munchWalls = o.munchWalls; if ("munchDots" in o) munchDots = o.munchDots; if ("munchPower" in o) munchPower = o.munchPower; if ("munchPlayerPos" in o) munchPlayerPos = o.munchPlayerPos; if ("munchGhosts" in o) munchGhosts = o.munchGhosts; if ("munchPoweredLeft" in o) munchPoweredLeft = o.munchPoweredLeft; if ("munchLives" in o) munchLives = o.munchLives; if ("munchEaten" in o) munchEaten = o.munchEaten; if ("munchTotal" in o) munchTotal = o.munchTotal; if ("munchOver" in o) munchOver = o.munchOver; if ("munchWon" in o) munchWon = o.munchWon; } };
+PROGRESS_SAVERS.jenga = { has: () => !!(jengaState && !jengaCollapsing), get: () => ({ jengaState }), set: (o) => { if ("jengaState" in o) jengaState = o.jengaState; } };
+PROGRESS_SAVERS.billiards = { has: () => !!(bilState && bilState.phase !== "over"), get: () => ({ bilState }), set: (o) => { if ("bilState" in o) bilState = o.bilState; } };
+PROGRESS_SAVERS.darts = { has: () => !!(dt && !dt.over), get: () => ({ dt }), set: (o) => { if ("dt" in o) dt = o.dt; if (dt) { dt.busy = false; dt.flash = null; } } };
+// After a game is brought back from storage (new page load), a computer turn that was half-way must be started again.
+const PROG_RESTORED = {};
+const PROG_KICK = {
+  courtpiece: () => { cpAwaiting = false; cpAdvance(); },
+  cards4: () => { fcAwaiting = false; fcAdvance(); },
+  basra: () => { bsAwaiting = false; bsAdvance(); },
+  ludo6: () => { l6Roll = null; l6Awaiting = false; l6Movable = []; if (L6_SEATS[l6Turn] !== 'red') setTimeout(l6AiRoll, 300); else { l6Render(); l6Say('Your turn \u2014 roll the dice.'); } }
 };
 function progEncode(o) {
   return JSON.stringify(o, (k, v) => {
@@ -23892,7 +24041,7 @@ function progressRestoreAll() {
       const t = localStorage.getItem('prog-' + id);
       if (!t) return;
       PROGRESS_SAVERS[id].set(progDecode(t));
-      if (PROGRESS_SAVERS[id].has()) gameStarted[id] = true;
+      if (PROGRESS_SAVERS[id].has()) { gameStarted[id] = true; PROG_RESTORED[id] = true; }
     } catch (e) { try { localStorage.removeItem('prog-' + id); } catch (_) {} }
   });
 }
