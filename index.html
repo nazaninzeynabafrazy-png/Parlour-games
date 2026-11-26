@@ -10124,9 +10124,18 @@ function ckPlaySound(kind) {
 }
 
 // --- persistence (auto-save) ---
+// Each of the 16 rule sets keeps its own unfinished game ('ck-save-<variant>').
+function ckSaveKey(id) { return 'ck-save-' + id; }
+function ckMigrateOldSave() {
+  const old = safeGet('ck-save', null);
+  if (old && old.variant && !safeGet(ckSaveKey(old.variant), null)) safeSet(ckSaveKey(old.variant), old);
+  if (old) safeSet('ck-save', null);
+}
+function ckGetSave(id) { ckMigrateOldSave(); const sv = safeGet(ckSaveKey(id), null); return (sv && sv.board && !sv.over) ? sv : null; }
 function ckAutosave() {
   if (!ckBoard) return;
-  safeSet('ck-save', {
+  safeSet('checkers-active', ckVariantId);
+  safeSet(ckSaveKey(ckVariantId), {
     variant: ckVariantId, settings: ckSettings, board: ckBoard, turn: ckTurn, over: ckOver,
     forced: ckForced ? {pos: ckForced.pos, chainMax: ckForced.chainMax, chainCount: ckForced.chainCount} : null,
   });
@@ -10159,27 +10168,17 @@ function renderCheckers(resume) {
   if (ckShowSetup) { ckShowSetup = false; ckRenderSetup(); return; }
   if (resume) {
     if (!ckBoard) {
-      const saved = safeGet('ck-save', null);
+      const act = safeGet('checkers-active', null), saved = act ? ckGetSave(act) : null;
       if (saved) ckLoadSave(saved);
     }
     if (ckBoard) { ckRenderBoardAndMaybeAi(); return; }
     ckRenderSetup();
     return;
   }
-  // resume === false: openGame() calls this both the very first time this
-  // game is opened in a session AND when the player explicitly chooses
-  // "Start New" from the resume-or-new prompt after already having played.
-  // An in-memory ckBoard only exists in the second case, so it's what tells
-  // the two apart -- without this check "Start New" just redrew the old,
-  // still-in-progress board instead of actually starting over.
-  if (!ckBoard) {
-    const saved = safeGet('ck-save', null);
-    if (saved) { ckLoadSave(saved); ckRenderBoardAndMaybeAi(); return; }
-    ckRenderSetup();
-    return;
-  }
+  // Opening Checkers fresh: nothing is thrown away. Every rule set keeps its own unfinished game and
+  // the setup screen offers to continue it.
+  if (ckBoard) ckAutosave();
   ckBoard = null;
-  safeSet('ck-save', null);
   ckRenderSetup();
 }
 
@@ -10219,6 +10218,7 @@ function ckRenderSetup() {
       <div id="ckGiveawayRowWrap"></div>
       <div class="btn-row" style="margin-top:6px;">
         <button class="btn" id="ckStartBtn">Start game</button>
+        <button class="btn ghost" id="ckNewBtn" style="display:none;">Start a new game</button>
       </div>
     </div>
   `;
@@ -10228,9 +10228,10 @@ function ckRenderSetup() {
     btn.textContent = label;
     btn.addEventListener('click', () => {
       ckSettings[key] = value;
-      if (key === 'variant') ckRenderSetupGiveawayRow();
+      if (key === 'variant') { ckRenderSetupGiveawayRow(); }
       row.querySelectorAll('.ck-chip').forEach(el => el.classList.remove('active'));
       btn.classList.add('active');
+      if (key === 'variant') ckRefreshSaveUi();
     });
     row.appendChild(btn);
   };
@@ -10247,7 +10248,26 @@ function ckRenderSetup() {
   const themeRow = document.getElementById('ckThemeRow');
   Object.keys(CK_THEMES).forEach(id => chip(themeRow, 'theme', id, CK_THEMES[id].label));
   ckRenderSetupGiveawayRow();
-  document.getElementById('ckStartBtn').addEventListener('click', ckStartGame);
+  document.getElementById('ckStartBtn').addEventListener('click', () => {
+    const sv = ckGetSave(ckSettings.variant);
+    if (sv) { ckLoadSave(sv); startTimer(); ckRenderBoardAndMaybeAi(); return; }
+    ckStartGame();
+  });
+  document.getElementById('ckNewBtn').addEventListener('click', () => { safeSet(ckSaveKey(ckSettings.variant), null); ckStartGame(); });
+  ckRefreshSaveUi();
+}
+// Marks the rule sets that have an unfinished game and turns Start into Continue.
+function ckRefreshSaveUi() {
+  const row = document.getElementById('ckVariantRow'), st = document.getElementById('ckStartBtn'), nb = document.getElementById('ckNewBtn');
+  if (row) row.querySelectorAll('.ck-chip').forEach((el, i) => {
+    const has = !!ckGetSave(CK_VARIANT_ORDER[i]);
+    let dot = el.querySelector('.ch-save-dot');
+    if (has && !dot) { dot = document.createElement('span'); dot.className = 'ch-save-dot'; dot.textContent = ' \u25CF'; dot.style.color = 'var(--brass-light)'; dot.title = 'Unfinished game'; el.appendChild(dot); }
+    if (!has && dot) dot.remove();
+  });
+  const has = !!ckGetSave(ckSettings.variant);
+  if (st) st.textContent = has ? 'Continue game' : 'Start game';
+  if (nb) nb.style.display = has ? '' : 'none';
 }
 
 function ckRenderSetupGiveawayRow() {
@@ -10341,7 +10361,7 @@ function ckRenderBoard() {
       </div>
     </div>
   `;
-  document.getElementById('ckNew').addEventListener('click', () => { safeSet('ck-save', null); ckBoard = null; renderCheckers(); });
+  document.getElementById('ckNew').addEventListener('click', () => { safeSet(ckSaveKey(ckVariantId), null); ckBoard = null; renderCheckers(); });
   document.getElementById('ckChangeSettings').addEventListener('click', () => ckStartSetup());
   document.getElementById('ckSoundToggle').addEventListener('click', () => {
     ckSettings.soundOn = !ckSettings.soundOn;
