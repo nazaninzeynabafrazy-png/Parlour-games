@@ -13424,8 +13424,14 @@ function gcRender() {
       const isW = p.c === 'w';
       let discFill = isW ? '#fff8e6' : '#2a2a2a', discStroke = isW ? '#6b5a3a' : '#e8c36a', glyphFill = isW ? '#3a2d1a' : '#f3e3b0'; const gcRoot = getComputedStyle(document.documentElement), gcYou = gcRoot.getPropertyValue('--player-piece').trim(), gcOpp = gcRoot.getPropertyValue('--opp-piece').trim(), gcYouT = gcRoot.getPropertyValue('--player-piece-text').trim(), gcOppT = gcRoot.getPropertyValue('--opp-piece-text').trim();
       if (isW && gcYou) { discFill = gcYou; glyphFill = gcYouT || glyphFill; } else if (!isW && gcOpp) { discFill = gcOpp; glyphFill = gcOppT || glyphFill; }
-      pcs += `<circle cx="${x}" cy="${y}" r="${S * 0.68}" fill="${discFill}" stroke="${discStroke}" stroke-width="1.6" style="pointer-events:none"/>`
-        + `<text data-i="${i}" x="${x}" y="${y + 8}" text-anchor="middle" font-size="25" font-family="'Segoe UI Symbol','DejaVu Sans','Noto Sans Symbols 2','Noto Sans Symbols',serif" fill="${glyphFill}" style="pointer-events:none">${CH_SYMS.b[p.t]}\uFE0E</text>`;
+      const pk = (p.t || '').toUpperCase(), pc = isW ? 'w' : 'b';
+      if (typeof STD_IMG !== 'undefined' && STD_IMG[pc] && STD_IMG[pc][pk]) {
+        const ph = 64, pw = ph * 76 / 178;
+        pcs += `<image href="${STD_IMG[pc][pk]}" x="${x - pw / 2}" y="${y + 24 - ph}" width="${pw}" height="${ph}" style="pointer-events:none"/>`;
+      } else {
+              pcs += `<circle cx="${x}" cy="${y}" r="${S * 0.68}" fill="${discFill}" stroke="${discStroke}" stroke-width="1.6" style="pointer-events:none"/>`
+          + `<text data-i="${i}" x="${x}" y="${y + 8}" text-anchor="middle" font-size="25" font-family="'Segoe UI Symbol','DejaVu Sans','Noto Sans Symbols 2','Noto Sans Symbols',serif" fill="${glyphFill}" style="pointer-events:none">${CH_SYMS.b[p.t]}\uFE0E</text>`;
+      }
     }
     if (dests.has(i)) pcs += `<circle cx="${x}" cy="${y}" r="${p ? 0 : 6}" fill="rgba(30,90,30,.65)" style="pointer-events:none"/>` + (p ? `<polygon points="${gcHexPts(x, y, S - 3)}" fill="none" stroke="#2e7d32" stroke-width="3" style="pointer-events:none"/>` : '');
   });
