@@ -1252,7 +1252,7 @@
   .dt-status { min-height: 40px; margin-bottom: 8px; color: var(--brass-light); font-size: 14px; }
   .dt-hist { min-height: 22px; margin-bottom: 12px; color: var(--cream-dim); font-size: 13px; letter-spacing: .02em; }
   /* Snake Arena */
-  .sn-wrap { position: relative; width: 100%; max-width: 720px; }
+  .sn-wrap { position: relative; width: 100%; max-width: 1000px; }
   #snCanvas { display: block; border-radius: 12px; background: #05121a; box-shadow: 0 10px 28px rgba(0,0,0,.5); touch-action: none; cursor: crosshair; max-width: 100%; }
   .sn-over { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(5,18,26,.72); border-radius: 12px; }
   .sn-over[hidden] { display: none; }
@@ -2281,6 +2281,13 @@
     .sudoku-wrap { flex-direction: column; }
   }
   :focus-visible { outline: 2px solid var(--brass-light); outline-offset: 2px; }
+  /* Horizontal (landscape) play: Billiards, Snake Arena and the wide chess boards use the whole screen height */
+  @media (orientation: landscape) and (max-height: 900px) {
+    body:has(#bilStage) .topbar, body:has(#snCanvas) .topbar, body:has(#vcBoard) .topbar { display: none; }
+    body:has(#bilStage) .game-title, body:has(#bilStage) .game-sub, body:has(#snCanvas) .game-title, body:has(#snCanvas) .game-sub, body:has(#vcBoard) .game-title, body:has(#vcBoard) .game-sub { display: none; }
+    .bil-stage.bil3d { height: calc(100vh - 230px); min-height: 280px; }
+    #vcBoard { width: min(var(--vc-w, 960px), 96vw, max(300px, calc((100vh - 130px) * var(--vc-r, 1)))) !important; }
+  }
 </style>
 </head>
 <body>
@@ -15318,7 +15325,7 @@ function vcRenderBoard() {
     <p class="game-sub">${vcSubText(game)}</p>
     ${aboutBlock(vcRulesHtml(game.variant))}
     <div class="ck-wrap">
-      <div class="ch-board vc-board${game.cfg.boardKind === 'tamerlane' ? ' tam' : ''}" id="vcBoard" style="grid-template-columns:repeat(${game.cols + (game.citadels ? 2 : 0)},1fr); grid-template-rows:repeat(${game.rows},1fr);"></div>
+      <div class="ch-board vc-board${game.cfg.boardKind === 'tamerlane' ? ' tam' : ''}" id="vcBoard" style="grid-template-columns:repeat(${game.cols + (game.citadels ? 2 : 0)},1fr); grid-template-rows:repeat(${game.rows},1fr); width:min(${(game.cols + (game.citadels ? 2 : 0)) * 60}px, 96vw, max(300px, calc((100vh - 220px) * ${((game.cols + (game.citadels ? 2 : 0)) / game.rows).toFixed(3)}))); height:auto; aspect-ratio:${game.cols + (game.citadels ? 2 : 0)} / ${game.rows}; --vc-w:${(game.cols + (game.citadels ? 2 : 0)) * 60}px; --vc-r:${((game.cols + (game.citadels ? 2 : 0)) / game.rows).toFixed(3)};"></div>
       <div class="ch-side">
         <div class="cclk-row" id="cclkRow" style="display:none;"></div>
         <div class="ch-status" id="vcStatus"></div>
@@ -20210,7 +20217,7 @@ function renderSnakeArena(resume) {
       </div>
     </div>`;
   const cv = document.getElementById('snCanvas'), wrap = document.getElementById('snWrap');
-  const dpr = Math.min(2, window.devicePixelRatio || 1), cssW = Math.max(280, Math.min(720, (wrap.clientWidth || 720))), cssH = Math.round(cssW * 0.62);
+  const dpr = Math.min(2, window.devicePixelRatio || 1), land = window.innerWidth > window.innerHeight && window.innerHeight < 900, cssW = Math.max(280, Math.min(land ? Math.floor((window.innerHeight - 90) / 0.62) : 720, (wrap.clientWidth || 720))), cssH = Math.round(cssW * 0.62);
   cv.width = Math.round(cssW * dpr); cv.height = Math.round(cssH * dpr); cv.style.width = cssW + 'px'; cv.style.height = cssH + 'px';
   const g = cv.getContext && cv.getContext('2d');
   sn.dpr = dpr;
