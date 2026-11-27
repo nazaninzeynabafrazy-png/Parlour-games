@@ -35,7 +35,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y imagemagick
 
       - name: Put in the app icon
-        working-directory: apk
+        working-directory: apk 
         run: |
           RES=android/app/src/main/res
           find $RES -name 'ic_launcher*' -delete
