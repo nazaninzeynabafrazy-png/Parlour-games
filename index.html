@@ -15306,6 +15306,7 @@ function vcStartGame(variantId) {
   vcRenderBoard();
 }
 
+let vcFlip180 = false;
 function vcSubText(game) {
   const c = game.cfg;
   if (c.fourArmy) return "You play Red (bottom left); the computer plays your partner Yellow against Blue and Green. Turns go Red \u2192 Blue \u2192 Yellow \u2192 Green.";
@@ -15333,6 +15334,7 @@ function vcRenderBoard() {
         <div class="coach-box hint-box" id="vcHintNote" style="display:none;"></div>
         <div class="btn-row" style="margin-top:0;">
           <button class="btn ghost" id="vcHintBtn">Hint</button>
+          <button class="btn ghost" id="vcFlipBtn" title="Turn the board 180 degrees">\u21BB Rotate 180\u00B0</button>
           <button class="btn ghost" id="vcChangeSettings">Change settings</button>
           <button class="btn ghost" id="vcNew">New game</button>
         </div>
@@ -15362,6 +15364,10 @@ function vcRenderBoard() {
     </div>
   `;
   document.getElementById('vcChangeSettings').addEventListener('click', () => chStartSetup());
+  { const fb = document.getElementById('vcFlipBtn'), bd = document.getElementById('vcBoard');
+    const paint = () => { if (bd) { if (vcFlip180) bd.setAttribute('data-flip', '1'); else bd.removeAttribute('data-flip'); } if (fb) fb.classList.toggle('on', vcFlip180); };
+    paint();
+    if (fb) fb.addEventListener('click', () => { vcFlip180 = !vcFlip180; paint(); }); }
   document.getElementById('vcNew').addEventListener('click', () => { const vid = vcGame && vcGame.variant; if (vid) { safeSet(vcSaveKey(vid), null); safeSet(vcLogKey(vid), null); } vcGame = null; chState = null; renderChess(); });
   document.getElementById('vcHintBtn').addEventListener('click', vcShowHint);
   vcStopPlay(); vcViewIndex = null;
@@ -19034,6 +19040,7 @@ function renderBilliards(resume) {
         <button class="btn ghost" id="bilRotBtn">↻ Rotate view</button>
         <button class="btn ghost" id="bilAngBtn">3D view</button>
         <button class="btn ghost" id="bilTopBtn">Top view</button>
+        <button class="btn ghost" id="bilFlipBtn">\u21BB Rotate 180\u00B0</button>
       </div>
       <div class="bil-sight" id="bilSight"></div>
       <div class="btn-row bil-fine-bar" style="margin-top:0;">
@@ -19076,6 +19083,7 @@ function renderBilliards(resume) {
     const rot = document.getElementById('bilRotBtn');
     rot.addEventListener('click', () => { bilViewMode = !bilViewMode; rot.classList.toggle('on', bilViewMode); rot.textContent = bilViewMode ? '↻ Rotating: drag to spin' : '↻ Rotate view'; stageEl.style.cursor = bilViewMode ? 'grab' : ''; });
     document.getElementById('bilTopBtn').addEventListener('click', () => bil3dSetView('top'));
+    document.getElementById('bilFlipBtn').addEventListener('click', () => { if (bil3d) { bil3d.cam.theta += Math.PI; bil3dApplyCamera(); } });
     document.getElementById('bilAngBtn').addEventListener('click', () => bil3dSetView('angled'));
   } else {
     const hint = document.getElementById('bilHint'); if (hint) hint.style.display = 'none';
@@ -20179,7 +20187,7 @@ function snUpdateHud() {
     lb.innerHTML = top.map((s, i) => `<li class="${s.isPlayer ? 'me' : ''}"><span class="sn-dot" style="background:${s.color}"></span>${s.name}<b>${Math.floor(s.segs.length)}</b></li>`).join('');
   }
 }
-let snKeysBound = false;
+let snKeysBound = false, snRot180 = false;
 function renderSnakeArena(resume) {
   snStats = safeGet('sn-stats', { best: 0, kills: 0, wins: 0 });
   let pc = '#4CAE7A';
@@ -20211,7 +20219,7 @@ function renderSnakeArena(resume) {
       <div class="sn-side">
         <div class="sn-hud"><div><b id="snLen">0</b>Length</div><div><b id="snKills">0</b>Trapped</div><div><b id="snBest">${snStats.best || 0}</b>Best</div></div>
         <ol class="sn-board" id="snBoard"></ol>
-        <div class="btn-row"><button class="btn" id="snBoost" type="button">Hold to boost</button><button class="btn ghost" id="snNew" type="button">New game</button></div>
+        <div class="btn-row"><button class="btn" id="snBoost" type="button">Hold to boost</button><button class="btn ghost" id="snFlip" type="button">\u21BB Rotate 180\u00B0</button><button class="btn ghost" id="snNew" type="button">New game</button></div>
         <div class="bj-stats" style="margin-top:18px;"><div><b id="snWins">${snStats.wins || 0}</b>Rounds won</div><div><b>${snStats.kills || 0}</b>Snakes trapped</div></div>
         ${badgeStickersHTML('snakearena')}
       </div>
@@ -20223,7 +20231,8 @@ function renderSnakeArena(resume) {
   sn.dpr = dpr;
   const gen = sn.gen;
   const setAim = (e) => {
-    const rect = cv.getBoundingClientRect(); const x = e.clientX - rect.left - rect.width / 2, y = e.clientY - rect.top - rect.height / 2;
+    const rect = cv.getBoundingClientRect(); let x = e.clientX - rect.left - rect.width / 2, y = e.clientY - rect.top - rect.height / 2;
+    if (snRot180) { x = -x; y = -y; }
     if (Math.abs(x) + Math.abs(y) > 4) { sn.input.has = true; sn.input.ang = Math.atan2(y, x); }
   };
   cv.addEventListener('pointermove', setAim);
@@ -20234,6 +20243,9 @@ function renderSnakeArena(resume) {
   bb.addEventListener('pointerdown', (e) => { e.preventDefault(); if (sn.player.segs.length > 12) sn.player.boost = true; });
   ['pointerup', 'pointerleave', 'pointercancel'].forEach(ev => bb.addEventListener(ev, stopBoost));
   document.getElementById('snNew').addEventListener('click', () => renderSnakeArena(false));
+  { const fb = document.getElementById('snFlip');
+    const paint = () => { cv.style.transform = snRot180 ? 'rotate(180deg)' : ''; fb.classList.toggle('on', snRot180); };
+    paint(); fb.addEventListener('click', () => { snRot180 = !snRot180; paint(); }); }
   if (!snKeysBound) {
     snKeysBound = true;
     const key = (down) => (e) => {
