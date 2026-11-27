@@ -1342,6 +1342,9 @@
   .ch-fig img.photo { position: absolute; left: 50%; bottom: -2%; width: auto; height: 122%; max-width: none; transform: translateX(-50%); object-fit: contain; filter: drop-shadow(0 2px 2px rgba(0,0,0,.5)); }
   .ch-promo-row .ch-fig img.photo, .promo-glyph img.photo { height: 120%; }
   .vc-board .ch-fig img.photo { height: 112%; bottom: 0; }
+  .ch-fig img.photo[data-t="K"] { height: 100%; }
+  .ch-promo-row .ch-fig img.photo[data-t="K"], .promo-glyph img.photo[data-t="K"] { height: 98%; }
+  .vc-board .ch-fig img.photo[data-t="K"] { height: 92%; }
   .ch-fig.black img.photo { filter: drop-shadow(0 0 1.5px rgba(255,255,255,.7)) drop-shadow(0 2px 2px rgba(0,0,0,.5)); }
   .ch-fig img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
   .vc-board.tam .ch-square.light { background: #F0DCAC; }
@@ -1364,6 +1367,10 @@
   .ch-tint .ch-piece.white { color: #fff; text-shadow: none; filter: url(#chTintW) drop-shadow(0 0 1.2px var(--player-halo, #000)); }
   .ch-tint .ch-piece.black { color: #fff; text-shadow: none; filter: url(#chTintB) drop-shadow(0 0 1.2px var(--opp-halo, #F1E9D2)); }
   .ch-tint .ch-captured-piece { color: #fff; }
+  /* Chosen piece colours also tint the photo pieces */
+  .ph-tint .white img.photo, .ph-tint .ch-fig.white img { filter: url(#phTintW) drop-shadow(0 0 1.5px var(--player-halo, #000)) drop-shadow(0 2px 2px rgba(0,0,0,.5)); }
+  .ph-tint .black img.photo, .ph-tint .ch-fig.black img { filter: url(#phTintB) drop-shadow(0 0 1.5px var(--opp-halo, #F1E9D2)) drop-shadow(0 2px 2px rgba(0,0,0,.5)); }
+  .ch-tint .ch-piece:has(img) { filter: none; }
   .ch-piece-ghost { pointer-events: none; }
   .ch-coord { position: absolute; font-family: var(--font-body); font-size: clamp(8px, 1.6vw, 11px); font-weight: 700; line-height: 1; pointer-events: none; user-select: none; opacity: 0.8; }
   .ch-coord-rank { top: 3px; left: 4px; }
@@ -3222,6 +3229,26 @@ function bgApplyContrast() {
   st.setProperty('--bg-ring-b', bgLum(B) > 0.5 ? '#1c130b' : '#f4ecd8');
 }
 
+function phTintMatrix(rgb) {
+  const L = [0.2126, 0.7152, 0.0722], g = 1.25, o = 0.32;
+  const row = c => L.map(l => (c * g * l).toFixed(4)).join(' ') + ' 0 ' + (c * o).toFixed(4);
+  return row(rgb[0]) + ' ' + row(rgb[1]) + ' ' + row(rgb[2]) + ' 0 0 0 1 0';
+}
+function phUpdateTint(p) {
+  const root = document.documentElement;
+  const you = chHexRGB(p && p.you && p.you.c), opp = chHexRGB(p && p.opp && p.opp.c);
+  if (!you || !opp) { root.classList.remove('ph-tint'); return; }
+  let host = document.getElementById('phTintDefs');
+  if (!host) {
+    host = document.createElement('div'); host.id = 'phTintDefs';
+    host.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
+    host.innerHTML = '<svg width="0" height="0" aria-hidden="true"><filter id="phTintW" color-interpolation-filters="sRGB"><feColorMatrix id="phTintWM" type="matrix"/></filter><filter id="phTintB" color-interpolation-filters="sRGB"><feColorMatrix id="phTintBM" type="matrix"/></filter></svg>';
+    document.body.appendChild(host);
+  }
+  document.getElementById('phTintWM').setAttribute('values', phTintMatrix(you));
+  document.getElementById('phTintBM').setAttribute('values', phTintMatrix(opp));
+  root.classList.add('ph-tint');
+}
 function applyPieceColor(id) {
   let p = PIECE_COLORS.find(x => x.id === id) || PIECE_COLORS[0];
   if (id === 'custom') { const cu = safeGet('piece-custom', { you: '#2F63B5', opp: '#D0382D' }); p = { id: 'custom', you: pcSide(cu.you), opp: pcSide(cu.opp) }; }
@@ -3230,6 +3257,7 @@ function applyPieceColor(id) {
                  '--opp-piece': p.opp && p.opp.c, '--opp-piece-text': p.opp && p.opp.t, '--opp-halo': p.opp && p.opp.h };
   Object.keys(vars).forEach(k => { if (vars[k]) st.setProperty(k, vars[k]); else st.removeProperty(k); });
   chUpdateTint(p);
+  phUpdateTint(p);
   document.documentElement.classList.toggle('pc-default', !p.you);
   safeSet('piece-color', p.id);
   renderPieceColorPicker(p.id);
@@ -12772,7 +12800,7 @@ const STD_IMG = {"w":{"K":"data:image/webp;base64,UklGRigOAABXRUJQVlA4WAoAAAAQAA
 function chFigSvg(type, armyHex, color) {
   const t = String(type).toLowerCase(), sh = CH_FIG_SHAPES[t]; if (!sh) return '';
   if (!armyHex && color && typeof document !== 'undefined' && (document.getElementById('chBoard') || (document.getElementById('vcBoard') && !document.querySelector('#vcBoard.tam'))) && STD_IMG[color] && STD_IMG[color][t.toUpperCase()]) {
-    return '<img class="photo" src="' + STD_IMG[color][t.toUpperCase()] + '" alt="" draggable="false">';
+    return '<img class="photo" data-t="' + t.toUpperCase() + '" src="' + STD_IMG[color][t.toUpperCase()] + '" alt="" draggable="false">';
   }
   chFigDefs();
   if (!armyHex && CH_CLASSIC_SHAPES[t] && typeof document !== 'undefined' && document.getElementById('chBoard')) {   // Standard Chess keeps its classic silver/black pieces
@@ -13426,8 +13454,8 @@ function gcRender() {
       if (isW && gcYou) { discFill = gcYou; glyphFill = gcYouT || glyphFill; } else if (!isW && gcOpp) { discFill = gcOpp; glyphFill = gcOppT || glyphFill; }
       const pk = (p.t || '').toUpperCase(), pc = isW ? 'w' : 'b';
       if (typeof STD_IMG !== 'undefined' && STD_IMG[pc] && STD_IMG[pc][pk]) {
-        const ph = 64, pw = ph * 76 / 178;
-        pcs += `<image href="${STD_IMG[pc][pk]}" x="${x - pw / 2}" y="${y + 24 - ph}" width="${pw}" height="${ph}" style="pointer-events:none"/>`;
+        const ph = pk === 'K' ? 54 : 64, pw = ph * 76 / 178;
+        pcs += `<image href="${STD_IMG[pc][pk]}" x="${x - pw / 2}" y="${y + 24 - ph}" width="${pw}" height="${ph}" style="pointer-events:none"${document.documentElement.classList.contains('ph-tint') ? ' filter="url(#' + (isW ? 'phTintW' : 'phTintB') + ')"' : ''}/>`;
       } else {
               pcs += `<circle cx="${x}" cy="${y}" r="${S * 0.68}" fill="${discFill}" stroke="${discStroke}" stroke-width="1.6" style="pointer-events:none"/>`
           + `<text data-i="${i}" x="${x}" y="${y + 8}" text-anchor="middle" font-size="25" font-family="'Segoe UI Symbol','DejaVu Sans','Noto Sans Symbols 2','Noto Sans Symbols',serif" fill="${glyphFill}" style="pointer-events:none">${CH_SYMS.b[p.t]}\uFE0E</text>`;
