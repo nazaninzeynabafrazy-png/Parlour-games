@@ -20058,6 +20058,12 @@ function renderDarts(resume) {
    An original io-style arena: steer your snake with the pointer (or arrow keys), eat glowing pellets to grow,
    boost for a burst of speed, and make the computer snakes run into you. Reach length 100 for a round win. */
 const SN = { R: 1500, SEG: 9, PELLETS: 420 };
+const SN_PUPS = [
+  { k: 'shield', t: 6, c: '#4cc3ff', ic: '\u{1F6E1}', msg: 'Shield \u2014 snakes cannot hurt you!', name: 'Shield' },
+  { k: 'magnet', t: 9, c: '#c07bff', ic: '\u{1F9F2}', msg: 'Magnet \u2014 pellets fly to you!', name: 'Magnet' },
+  { k: 'speed', t: 7, c: '#ffd23f', ic: '\u26A1', msg: 'Turbo \u2014 free speed!', name: 'Turbo' },
+  { k: 'double', t: 9, c: '#5fe08a', ic: '\u00D72', msg: 'Double growth!', name: 'Double' }
+];
 let snStats = { best: 0, kills: 0, wins: 0 };
 let sn = null;
 let snLoopGen = 0;
@@ -20067,7 +20073,7 @@ function snRadius(s) { return Math.min(17, 6 + Math.sqrt(s.segs.length) * 0.55);
 function snNewSnake(x, y, ang, len, color, isPlayer, name) {
   const segs = [];
   for (let i = 0; i < len; i++) segs.push({ x: x - Math.cos(ang) * i * SN.SEG, y: y - Math.sin(ang) * i * SN.SEG });
-  return { segs, ang, target: ang, grow: 0, color, isPlayer: !!isPlayer, name, boost: false, alive: true, dropT: 0, thinkT: 0, respawnT: 0, kills: 0 };
+  return { segs, ang, target: ang, grow: 0, color, isPlayer: !!isPlayer, name, boost: false, alive: true, dropT: 0, thinkT: 0, respawnT: 0, kills: 0, fx: { shield: 0, magnet: 0, speed: 0, double: 0 } };
 }
 function snRandomPoint(frac) { const a = Math.random() * Math.PI * 2, r = Math.sqrt(Math.random()) * SN.R * (frac || 0.92); return { x: Math.cos(a) * r, y: Math.sin(a) * r }; }
 function snSpawnPellet(x, y, v, color) {
@@ -20077,7 +20083,7 @@ function snFillPellets() { while (sn.pellets.length < SN.PELLETS) { const p = sn
 function snAiCount() { return gameLevel === 'easy' ? 5 : gameLevel === 'hard' ? 11 : 8; }
 function snAiSpeed() { return gameLevel === 'easy' ? 0.9 : gameLevel === 'hard' ? 1.08 : 1; }
 function snNew(playerColor) {
-  sn = { snakes: [], pellets: [], player: null, running: true, over: false, t: 0, wonRound: false, best: 0, lbT: 0, cam: { x: 0, y: 0 }, input: { x: 0, y: 0, has: false }, keys: { left: false, right: false }, gen: ++snLoopGen };
+  sn = { snakes: [], pellets: [], pups: [], pupT: 2.5, player: null, running: true, over: false, t: 0, wonRound: false, best: 0, lbT: 0, cam: { x: 0, y: 0 }, input: { x: 0, y: 0, has: false }, keys: { left: false, right: false }, gen: ++snLoopGen };
   const p = snNewSnake(0, 0, 0, 14, playerColor || '#4CAE7A', true, 'You');
   sn.player = p; sn.snakes.push(p);
   const names = ['Viper', 'Mamba', 'Cobra', 'Python', 'Asp', 'Adder', 'Boa', 'Taipan', 'Krait', 'Racer', 'Sidewinder'];
@@ -20087,7 +20093,7 @@ function snNew(playerColor) {
 function snStepSnake(s, dt, speedMul) {
   const diff = snAngDiff(s.ang, s.target), maxTurn = (s.boost ? 3.0 : 4.0) * dt;
   s.ang += Math.max(-maxTurn, Math.min(maxTurn, diff));
-  const speed = (s.boost ? 185 : 105) * (speedMul || 1);
+  const speed = (s.boost ? 185 : 105) * (speedMul || 1) * (s.fx && s.fx.speed > 0 ? 1.22 : 1);
   const h = s.segs[0], nx = h.x + Math.cos(s.ang) * speed * dt, ny = h.y + Math.sin(s.ang) * speed * dt;
   s.segs[0] = { x: nx, y: ny };
   for (let i = 1; i < s.segs.length; i++) {
@@ -20096,7 +20102,7 @@ function snStepSnake(s, dt, speedMul) {
   }
   if (s.grow >= 1) { const n = Math.floor(s.grow); s.grow -= n; const t = s.segs[s.segs.length - 1]; for (let i = 0; i < n; i++) s.segs.push({ x: t.x, y: t.y }); }
   if (s.boost) {
-    s.dropT += dt;
+    s.dropT += (s.fx && s.fx.speed > 0) ? 0 : dt;
     while (s.dropT >= 0.13) { s.dropT -= 0.13; if (s.segs.length > 12) { const t = s.segs.pop(); snSpawnPellet(t.x, t.y, 0.8, s.color); } else { s.boost = false; break; } }
   }
 }
@@ -20104,7 +20110,7 @@ function snKill(s, killer) {
   if (!s.alive) return;
   s.alive = false; s.respawnT = 2.8;
   for (let i = 0; i < s.segs.length; i += 2) snSpawnPellet(s.segs[i].x + (Math.random() - .5) * 6, s.segs[i].y + (Math.random() - .5) * 6, 1.4, s.color);
-  if (killer && killer !== s) { killer.kills++; if (killer.isPlayer) { snStats.kills++; sn.killMsg = `You trapped ${s.name}!`; sn.killMsgT = 2; } }
+  if (killer && killer !== s) { killer.kills++; if (killer.isPlayer) { snStats.kills++; sn.killMsg = killer.kills >= 3 ? `${killer.kills} trapped \u2014 on fire!` : `You trapped ${s.name}!`; sn.killMsgT = 2; } }
   if (s.isPlayer) snGameOver();
 }
 function snGameOver() {
@@ -20162,6 +20168,23 @@ function snStep(dt) {
   const pl = sn.player;
   if (sn.input.has) pl.target = sn.input.ang;
   if (sn.keys.left) pl.target = pl.ang - 1.1; else if (sn.keys.right) pl.target = pl.ang + 1.1;
+  for (const k in pl.fx) if (pl.fx[k] > 0) pl.fx[k] = Math.max(0, pl.fx[k] - dt);
+  sn.pupT -= dt;
+  if (sn.pupT <= 0) {
+    sn.pupT = 4 + Math.random() * 3;
+    if (sn.pups.length < 5) { const p = snRandomPoint(0.85), tp = SN_PUPS[Math.floor(Math.random() * SN_PUPS.length)]; sn.pups.push({ x: p.x, y: p.y, k: tp.k, ph: Math.random() * 6 }); }
+  }
+  if (pl.alive) {
+    const hh = pl.segs[0], pr = snRadius(pl) + 14;
+    for (let i = sn.pups.length - 1; i >= 0; i--) {
+      const u = sn.pups[i];
+      if ((u.x - hh.x) ** 2 + (u.y - hh.y) ** 2 < pr * pr) { const tp = SN_PUPS.find(z => z.k === u.k); pl.fx[u.k] = tp.t; sn.pups.splice(i, 1); sn.killMsg = tp.msg; sn.killMsgT = 2; }
+    }
+    if (pl.fx.magnet > 0) for (const p of sn.pellets) {
+      const dx = hh.x - p.x, dy = hh.y - p.y, d = Math.hypot(dx, dy);
+      if (d < 190 && d > 1) { const m = Math.min(d, 300 * dt); p.x += dx / d * m; p.y += dy / d * m; }
+    }
+  }
   for (const s of sn.snakes) {
     if (!s.alive) {
       if (!s.isPlayer) { s.respawnT -= dt; if (s.respawnT <= 0) { const p = snRandomPoint(0.75); const n = snNewSnake(p.x, p.y, Math.random() * 6.28, 12, s.color, false, s.name); Object.assign(s, n); } }
@@ -20173,7 +20196,7 @@ function snStep(dt) {
     const h = s.segs[0], rr = snRadius(s) + 7;
     for (let i = sn.pellets.length - 1; i >= 0; i--) {
       const p = sn.pellets[i], dx = p.x - h.x, dy = p.y - h.y;
-      if (dx * dx + dy * dy < (rr + p.r) * (rr + p.r) * (s.boost ? 1 : 1)) { s.grow += p.v; sn.pellets.splice(i, 1); }
+      if (dx * dx + dy * dy < (rr + p.r) * (rr + p.r) * (s.boost ? 1 : 1)) { s.grow += p.v * (s.fx && s.fx.double > 0 ? 2 : 1); sn.pellets.splice(i, 1); }
     }
   }
   // collisions
@@ -20193,6 +20216,7 @@ function snStep(dt) {
           if (hit) break;
         }
       }
+      if (hit && s.isPlayer && s.fx.shield > 0) hit = false;
       if (hit) { snKill(s, o); break; }
     }
   }
@@ -20214,7 +20238,7 @@ function snDraw(g, W, H) {
   g.fillStyle = '#05121a'; g.fillRect(0, 0, W, H);
   g.setTransform(zoom * D, 0, 0, zoom * D, (W / 2 - sn.cam.x * zoom) * D, (H / 2 - sn.cam.y * zoom) * D);
   const vx0 = sn.cam.x - W / 2 / zoom - 40, vx1 = sn.cam.x + W / 2 / zoom + 40, vy0 = sn.cam.y - H / 2 / zoom - 40, vy1 = sn.cam.y + H / 2 / zoom + 40;
-  g.fillStyle = '#0d2833'; g.beginPath(); g.arc(0, 0, SN.R, 0, Math.PI * 2); g.fill();
+  { const bgG = g.createRadialGradient(0, 0, 80, 0, 0, SN.R); bgG.addColorStop(0, '#12384a'); bgG.addColorStop(1, '#091c26'); g.fillStyle = bgG; g.beginPath(); g.arc(0, 0, SN.R, 0, Math.PI * 2); g.fill(); }
   g.fillStyle = 'rgba(255,255,255,.07)';
   for (let x = Math.floor(vx0 / 70) * 70; x < vx1; x += 70) for (let y = Math.floor(vy0 / 70) * 70; y < vy1; y += 70) { if (x * x + y * y < SN.R * SN.R) g.fillRect(x, y, 3, 3); }
   g.lineWidth = 10; g.strokeStyle = '#c2392d'; g.beginPath(); g.arc(0, 0, SN.R + 5, 0, Math.PI * 2); g.stroke();
@@ -20222,6 +20246,14 @@ function snDraw(g, W, H) {
     if (p.x < vx0 || p.x > vx1 || p.y < vy0 || p.y > vy1) continue;
     g.globalAlpha = 0.28; g.fillStyle = p.c; g.beginPath(); g.arc(p.x, p.y, p.r * 1.9, 0, Math.PI * 2); g.fill();
     g.globalAlpha = 1; g.beginPath(); g.arc(p.x, p.y, p.r, 0, Math.PI * 2); g.fill();
+  }
+  for (const u of sn.pups) {
+    if (u.x < vx0 || u.x > vx1 || u.y < vy0 || u.y > vy1) continue;
+    const tp = SN_PUPS.find(z => z.k === u.k), pulse = 1 + 0.12 * Math.sin(sn.t * 4 + u.ph);
+    g.globalAlpha = 0.25; g.fillStyle = tp.c; g.beginPath(); g.arc(u.x, u.y, 26 * pulse, 0, Math.PI * 2); g.fill();
+    g.globalAlpha = 1; g.fillStyle = '#0b1a22'; g.beginPath(); g.arc(u.x, u.y, 15, 0, Math.PI * 2); g.fill();
+    g.lineWidth = 3; g.strokeStyle = tp.c; g.stroke();
+    g.fillStyle = '#fff'; g.font = 'bold 15px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(tp.ic, u.x, u.y + 1); g.textBaseline = 'alphabetic';
   }
   const order = sn.snakes.filter(s => s.alive).sort((a, b) => a.segs.length - b.segs.length);
   for (const s of order) {
@@ -20232,9 +20264,12 @@ function snDraw(g, W, H) {
       const taper = 0.62 + 0.38 * (1 - i / n);
       g.fillStyle = (Math.floor(i / 3) % 2 === 0) ? s.color : snShade(s.color);
       g.beginPath(); g.arc(q.x, q.y, r * taper, 0, Math.PI * 2); g.fill();
+      g.fillStyle = 'rgba(255,255,255,.17)'; g.beginPath(); g.arc(q.x - r * taper * 0.25, q.y - r * taper * 0.3, r * taper * 0.45, 0, Math.PI * 2); g.fill();
     }
     const h = s.segs[0], ex = Math.cos(s.ang), ey = Math.sin(s.ang), px = -ey, py = ex;
     if (s.boost) { g.strokeStyle = 'rgba(255,255,255,.55)'; g.lineWidth = 2; g.beginPath(); g.arc(h.x, h.y, r + 3, 0, Math.PI * 2); g.stroke(); }
+    if (s.isPlayer && s.fx.shield > 0) { g.strokeStyle = 'rgba(76,195,255,' + (s.fx.shield < 1.5 ? 0.35 + 0.35 * Math.sin(sn.t * 20) : 0.85) + ')'; g.lineWidth = 4; g.beginPath(); g.arc(h.x, h.y, r + 9, 0, Math.PI * 2); g.stroke(); }
+    if (s.isPlayer && s.fx.magnet > 0) { g.strokeStyle = 'rgba(192,123,255,.25)'; g.lineWidth = 2; g.beginPath(); g.arc(h.x, h.y, 190, 0, Math.PI * 2); g.stroke(); }
     [-1, 1].forEach(sd => {
       const ox = h.x + ex * r * 0.45 + px * sd * r * 0.5, oy = h.y + ey * r * 0.45 + py * sd * r * 0.5;
       g.fillStyle = '#fff'; g.beginPath(); g.arc(ox, oy, r * 0.34, 0, Math.PI * 2); g.fill();
@@ -20247,6 +20282,10 @@ function snDraw(g, W, H) {
   const mm = 70, mx = W - mm - 10, my = H - mm - 10;
   g.fillStyle = 'rgba(0,0,0,.45)'; g.beginPath(); g.arc(mx + mm / 2, my + mm / 2, mm / 2, 0, Math.PI * 2); g.fill();
   for (const s of sn.snakes) { if (!s.alive) continue; const h = s.segs[0]; g.fillStyle = s.isPlayer ? '#fff' : s.color; g.beginPath(); g.arc(mx + mm / 2 + h.x / SN.R * mm / 2, my + mm / 2 + h.y / SN.R * mm / 2, s.isPlayer ? 3 : 2, 0, Math.PI * 2); g.fill(); }
+  { let cx = 10; g.textAlign = 'left'; g.font = 'bold 12px sans-serif';
+    for (const tp of SN_PUPS) { const v = pl.fx[tp.k]; if (v > 0) {
+      g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(cx, 10, 74, 22); g.fillStyle = tp.c; g.fillRect(cx, 29, 74 * Math.min(1, v / tp.t), 3);
+      g.fillStyle = '#fff'; g.fillText(tp.ic + ' ' + tp.name, cx + 6, 25); cx += 80; } } }
   if (sn.killMsgT > 0 && sn.killMsg) { g.fillStyle = 'rgba(0,0,0,.55)'; g.fillRect(W / 2 - 150, 14, 300, 28); g.fillStyle = '#fff'; g.font = 'bold 14px sans-serif'; g.textAlign = 'center'; g.fillText(sn.killMsg, W / 2, 33); }
 }
 function snShade(hex) {
@@ -20280,6 +20319,7 @@ function renderSnakeArena(resume) {
         <li><b>Steer</b> by moving the mouse or dragging a finger — your snake follows the pointer. Arrow keys turn left and right.</li>
         <li><b>Boost</b> with the button, <b>Space</b> or by holding the mouse button — it is faster, but burns your tail length and leaves pellets behind.</li>
         <li>Touching the body of another snake, or the red wall, ends your run. Run another snake’s head into your body and it dies and drops its length as pellets.</li>
+        <li><b>Power-ups</b> (glowing orbs): \u{1F6E1} Shield (snakes cannot hurt you), \u{1F9F2} Magnet (pellets fly to you), \u26A1 Turbo (free speed, no length lost), \u00D72 Double growth.</li>
         <li>Reach length 100 for a round win; the best length and the snakes you trap are saved. Easy / Medium / Hard (from the menu) change how many computer snakes there are and how sharp they are.</li>
       </ul>
     `)}
