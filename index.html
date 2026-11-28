@@ -16035,7 +16035,7 @@ function renderGemStats() {
   const gemsOn = typeof adsActive === 'function' && adsActive();
   const gameGems = (id) => L.earned['game:' + id] || 0;
   const gameRows = [];
-  GAMES.filter(g => g.id !== 'gemstats' && g.id !== 'chesslessons').forEach(g => {
+  GAMES.filter(g => g.id !== 'gemstats' && g.id !== 'chesslessons' && g.id !== 'allscores').forEach(g => {
     if (g.id === 'jigsaw') { gameRows.push({ name: 'Jigsaw \u2014 Square tiles', n: L.earned.jigsq || 0 }); gameRows.push({ name: 'Jigsaw \u2014 Curved pieces', n: L.earned.jigcv || 0 }); }
     else gameRows.push({ name: g.name, n: gameGems(g.id) });
   });
