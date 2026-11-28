@@ -1353,6 +1353,8 @@
   .ch-fig img { width: 100%; height: 100%; object-fit: contain; display: block; pointer-events: none; }
   .vc-board.tam .ch-square.light { background: #F0DCAC; }
   .vc-board.tam .ch-square.dark { background: #C48950; }
+  .vc-board.tam .ch-square.move-highlight { background: #E6C833; }
+  .vc-board.tam .ch-square.move-highlight:not(:has(.ch-piece))::after { content:''; position:absolute; left:50%; top:50%; width:26%; height:26%; border-radius:50%; background:rgba(60,40,0,.45); transform:translate(-50%,-50%); }
   .ch-fig.white svg.classic { --pf: var(--player-piece, #EDEDF0); --ps: var(--player-halo, #3E3E45); }
   .ch-fig.black svg.classic { --pf: var(--opp-piece, #25252A); --ps: var(--opp-halo, #8D8D96); }
   html.pc-default .ch-board:not(.vc-board) .ch-fig.white svg.classic { --pf: #EDEDF0; --ps: #3E3E45; }
