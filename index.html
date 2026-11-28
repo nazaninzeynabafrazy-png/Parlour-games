@@ -3139,12 +3139,12 @@ function renderPieceCustom() {
     });
   });
 }
-let chPieceStyle = (function(){ try { const v = String(localStorage.getItem('piece-style') || '').replace(/"/g, ''); return v === 'silver' || v === 'ivory' ? v : 'photo'; } catch (e) { return 'photo'; } })();
+let chPieceStyle = (function(){ try { const v = String(localStorage.getItem('piece-style') || '').replace(/"/g, ''); return v === 'ivory' ? v : 'photo'; } catch (e) { return 'photo'; } })();
 function renderPieceStylePicker() {
   const el = document.getElementById('pieceStylePicker');
   if (!el) return;
   el.innerHTML = '<span class="tp-label">Piece style</span>';
-  [['photo', 'Photo'], ['silver', 'Silver flat'], ['ivory', 'Ivory & Ebony']].forEach(([id, name]) => {
+  [['photo', 'Photo'], ['ivory', 'Ivory & Ebony']].forEach(([id, name]) => {
     const b = document.createElement('button');
     b.type = 'button'; b.className = 'btn' + (chPieceStyle === id ? ' active' : ''); b.textContent = name;
     b.style.cssText = 'margin-inline-end:8px;padding:6px 12px;' + (chPieceStyle === id ? 'outline:2px solid #e8c36a' : '');
